@@ -51,7 +51,8 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
-  const [method, setMethod] = useState<'link' | 'password'>('link')
+  const [method, setMethod] = useState<'link' | 'password'>('password')
+  const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [notice, setNotice] = useState('')
   const [sending, setSending] = useState(false)
@@ -126,12 +127,19 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
         <h2 id="sign-in-heading">Sign in to your private workspace</h2>
         <button className="icon-button" type="button" aria-label="Close sign-in" onClick={close}><X size={20} /></button>
       </div>
-      <label>Email<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
-      {method === 'password' && <label>Password<input required name="password" type="password" autoComplete="current-password" /></label>}
+      <label>Email<input required type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} /></label>
+      {method === 'password' && <div className="sign-in-password">
+        <label htmlFor="sign-in-password">Password</label>
+        <div>
+          <input id="sign-in-password" required name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" />
+          <button className="text-button" type="button" onClick={() => setShowPassword(value => !value)}>{showPassword ? 'Hide password' : 'Show password'}</button>
+        </div>
+      </div>}
       <div className="creative-actions">
         <button className="primary" disabled={sending}>{method === 'link' ? sending ? 'Sending…' : 'Send sign-in link' : sending ? 'Signing in…' : 'Sign in with password'}</button>
         <button type="button" className="text-button" disabled={sending} onClick={() => {
           setMethod(method === 'link' ? 'password' : 'link')
+          setShowPassword(false)
           setNotice('')
         }}>{method === 'link' ? 'Use a password' : 'Use a sign-in link'}</button>
       </div>
@@ -148,6 +156,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
         return
       }
       setNotice('')
+      setShowPassword(false)
       setSignInOpen(true)
     })}
     {signInOpen && <dialog

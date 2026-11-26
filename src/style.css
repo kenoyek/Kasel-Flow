@@ -240,3 +240,5 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .checklist-entry { display: flex; gap: 8px; margin-top: 10px }
 .checklist-entry input { flex: 1; min-width: 0 }
 .task-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; font-size: 13px }
+.sign-in-password > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 9px }
+.sign-in-password input { flex: 1 1 125px; min-width: 0 }
