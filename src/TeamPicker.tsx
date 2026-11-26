@@ -2,10 +2,24 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { cloud } from './cloud-workspace'
 import { listTeams, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
 
+function creationError(error: {code?: string; message?: string}) {
+  if (error.code === '42501' && error.message === 'Verified email required') {
+    return 'Confirm this account’s email in Supabase Authentication → Users, then try again.'
+  }
+  if (['PGRST202', '42883', '42P01'].includes(error.code ?? '')) {
+    return 'Team creation is unavailable. Apply the team-workspaces migration in Supabase and try again.'
+  }
+  if (error.code === '42501' || error.code === 'PGRST301') {
+    return 'Supabase denied team creation. Sign out, sign back in, and try again.'
+  }
+  return 'Could not create the team. Try again or check the Supabase logs for this request.'
+}
+
 export function TeamPicker({owner, openPrivate, openTeam}: {
   owner: string; openPrivate: () => void; openTeam: (team: Team) => void
 }) {
   const [teams, setTeams] = useState<Team[]>([])
+  const [inviteError, setInviteError] = useState(false)
   const [invites, setInvites] = useState<TeamInvite[]>([])
   const [managed, setManaged] = useState<Team | null>(null)
   const [members, setMembers] = useState<Member[]>([])
@@ -15,10 +29,15 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
   const alive = useRef(false)
 
   async function refresh() {
-    const [spaces, pending] = await Promise.all([listTeams(owner), cloud!.rpc('pending_team_invites')])
-    if (pending.error) throw pending.error
-    if (alive.current) {setTeams(spaces); setInvites(pending.data ?? [])}
-    return spaces
+    const [teamsResult, invitesResult] = await Promise.allSettled([listTeams(owner), cloud!.rpc('pending_team_invites')])
+    if (alive.current) {
+      const pending = invitesResult.status === 'fulfilled' ? invitesResult.value : null
+      setInviteError(!pending || Boolean(pending.error))
+      if (pending && !pending.error) setInvites(pending.data ?? [])
+      if (teamsResult.status === 'fulfilled') setTeams(teamsResult.value)
+    }
+    if (teamsResult.status === 'rejected') throw teamsResult.reason
+    return teamsResult.value
   }
 
   async function loadRoster(team: Team) {
@@ -50,11 +69,15 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
     const name = String(new FormData(form).get('name') ?? '').trim()
     if (!name) return
     void run(async () => {
-      const {error} = await cloud!.rpc('create_team_workspace',{team_name:name})
-      if (error) throw error
-      await refresh()
+      const {data,error} = await cloud!.rpc('create_team_workspace',{team_name:name})
+      if (!alive.current) return
+      if (error) {setMessage(creationError(error));return}
+      if (typeof data !== 'string') throw Error('Missing team ID')
+      const team: Team = {id:data, name, role:'owner'}
+      setTeams(previous => [...previous.filter(item => item.id !== team.id),team].sort((a,b) => a.name.localeCompare(b.name)))
       form.reset()
-    }, 'Could not create this team. A verified email is required.')
+      setMessage('Team created. Open it or choose Manage ' + name + ' to invite teammates.')
+    }, 'Could not confirm team creation. Refresh workspaces before trying again.')
   }
 
   function invite(event: FormEvent<HTMLFormElement>, team: Team) {
@@ -89,7 +112,7 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
         <form onSubmit={create}><label>Team name<input name="name" maxLength={100} required /></label><button className="primary" disabled={busy}>Create team</button></form>
       </section>
       <section className="panel dev-card assistant-panel"><h2>Invitations</h2>
-        {!invites.length && <p className="dev-muted">No pending invitations for your verified email.</p>}
+        {inviteError ? <p className="dev-muted">Invitations could not be loaded. Refresh workspaces to retry.</p> : !invites.length && <p className="dev-muted">No pending invitations for your verified email.</p>}
         {invites.map(item => <div className="team-row" key={item.id}>
           <span>{item.team_name} · {item.member_role} · expires {item.expires_at.slice(0,10)}</span>
           <button className="secondary" disabled={busy} onClick={() => void run(async () => {
