@@ -193,3 +193,10 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .assistant-panel .primary:disabled { opacity: .55; cursor: default }
 .assistant-output { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 13px; overflow-wrap: anywhere }
 .assistant-output ul { padding-left: 17px; max-height: 230px; overflow: auto }
+.account-gate { min-height: 100vh; display: grid; place-items: center }
+.account-gate > section { width: min(100%, 430px); padding: 22px }
+.account-gate h1 { margin-bottom: 16px }
+.gate-demo { margin: 8px 12px 8px 0 }
+.cloud-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 12px; margin: 0 0 15px; padding: 10px 12px; font-size: 12px }
+.cloud-bar > span { flex: 1 1 180px }
+.cloud-bar button:disabled { opacity: .55; cursor: default }

@@ -82,7 +82,7 @@ export function useAppInstallation() {
   return {canInstall:Boolean(install), waiting:Boolean(waiting), offlineReady, offline, updating, promptInstall, activateUpdate}
 }
 
-export function WorkspaceSettings({data, installation}: {data: Workspace; installation: ReturnType<typeof useAppInstallation>}) {
+export function WorkspaceSettings({data, installation, privateWorkspace}: {data: Workspace; privateWorkspace: boolean; installation: ReturnType<typeof useAppInstallation>}) {
   function exportWorkspace() {
     const exportedAt = new Date().toISOString()
     const file = new Blob([JSON.stringify({format:'kasel-os-workspace',version:1,exportedAt,workspace:data}, null, 2)], {type:'application/json'})
@@ -106,7 +106,7 @@ export function WorkspaceSettings({data, installation}: {data: Workspace; instal
     </section>
     <section className="panel dev-card assistant-panel">
       <h2><Download size={17} /> Workspace export</h2>
-      <p className="dev-muted">Download the records saved in this browser, including client and financial information, as a versioned JSON file.</p>
+      <p className="dev-muted">{privateWorkspace ? 'Download the open workspace, including unsaved changes, as a versioned JSON file.' : 'Download the records saved in this browser as a versioned JSON file.'} The file can include client and financial information.</p>
       <button className="primary" onClick={exportWorkspace}>Export workspace JSON</button>
     </section>
   </div>

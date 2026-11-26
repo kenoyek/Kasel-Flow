@@ -3,9 +3,9 @@ import { ClipboardList, FileText, Sparkles } from 'lucide-react'
 import { draftTasks, reports, reportWorkspace, type Report, type ReportResult } from './assistant-data'
 import type { Task, Workspace } from './data'
 
-type Props = { data: Workspace; today: string; update: Dispatch<SetStateAction<Workspace>> }
+type Props = { data: Workspace; today: string; update: Dispatch<SetStateAction<Workspace>>; allowModel: boolean }
 
-export function Assistant({data, today, update}: Props) {
+export function Assistant({data, today, update, allowModel}: Props) {
   const [report, setReport] = useState<Report>('reviews')
   const [projectId, setProjectId] = useState(data.projects[0]?.id ?? '')
   const [bugProject, setBugProject] = useState('')
@@ -20,7 +20,7 @@ export function Assistant({data, today, update}: Props) {
   const [draft, setDraft] = useState('')
   const [modelError, setModelError] = useState('')
   const [running, setRunning] = useState(false)
-  const localModel = import.meta.env.DEV && ['localhost','127.0.0.1','[::1]'].includes(location.hostname)
+  const localModel = allowModel && import.meta.env.DEV && ['localhost','127.0.0.1','[::1]'].includes(location.hostname)
 
   function runReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

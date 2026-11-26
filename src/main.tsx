@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, X } from 'lucide-react'
 import { colors, departments, seed, statuses, type Project, type Status, type Task, type Workspace } from './data'
 import { WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
+import { CloudGate, type CloudControls } from './CloudGate'
 import { Assistant } from './Assistant'
 import { defaultAutomation, reportWorkspace } from './assistant-data'
 import { Business } from './Business'
@@ -40,9 +41,14 @@ function formatDate(date: string) {
   return date ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(date + 'T00:00:00Z')) : 'No due date'
 }
 
-function App() {
+function App({account, openAccount}: {account?: CloudControls; openAccount?: () => void}) {
   const installation = useAppInstallation()
-  const [data, setData] = useState(loadWorkspace)
+  const [data, setData] = useState(() => account?.initial.data ?? loadWorkspace())
+  const [saved, setSaved] = useState(data)
+  const [revision, setRevision] = useState(account?.initial.revision ?? 0)
+  const [cloudBusy, setCloudBusy] = useState(false)
+  const [cloudMessage, setCloudMessage] = useState('')
+  const dirty = Boolean(account && saved !== data)
   const [page, setPage] = useState('Overview')
   const [projectFilter, setProjectFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -61,9 +67,38 @@ function App() {
   const [storageError, setStorageError] = useState(false)
 
   useEffect(() => {
+    if (account) return
     try { localStorage.setItem(storageKey, JSON.stringify(data)) }
     catch { setStorageError(true) }
-  }, [data])
+  }, [account, data])
+
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => {event.preventDefault(); event.returnValue = true}
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
+
+  async function saveCloud() {
+    if (!account || !dirty || cloudBusy) return
+    setCloudBusy(true)
+    setCloudMessage('')
+    try {
+      setRevision(await account.save(data, revision))
+      setSaved(data)
+      setCloudMessage('Cloud workspace saved.')
+    } catch (error) {
+      setCloudMessage(error instanceof Error ? error.message : 'Unable to save workspace.')
+    } finally {setCloudBusy(false)}
+  }
+
+  async function signOut() {
+    if (!account || cloudBusy || (dirty && !window.confirm('Sign out and discard unsaved workspace edits?'))) return
+    setCloudBusy(true)
+    setCloudMessage('')
+    try { await account.signOut() }
+    catch { setCloudMessage('Could not sign out. Try again.');setCloudBusy(false) }
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
@@ -165,10 +200,10 @@ function App() {
   return <div className="app">
     <aside className={mobileNav ? 'sidebar visible' : 'sidebar'}>
       <button className="brand" onClick={() => navigate('Overview')}><span className="brand-mark">K</span><span>Kasel <b>OS</b><small>AGENCY WORKSPACE</small></span></button>
-      <div className="workspace-label"><span className="workspace-icon">KD</span><span><strong>Kasel Digital</strong><small>Demo workspace</small></span></div>
+      <div className="workspace-label"><span className="workspace-icon">KD</span><span><strong>Kasel Digital</strong><small>{account ? 'Private cloud workspace' : 'Demo workspace'}</small></span></div>
       <nav aria-label="Workspace"><p>WORKSPACE</p>{links.map(({label,icon:Icon}) => <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}{page === label && <ChevronRight size={15} />}</button>)}
       <p>DEPARTMENTS</p>{departments.map((label,index) => {const Icon = departmentIcons[index]; return <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}</button>})}</nav>
-      <div className="sidebar-bottom"><span className="avatar">KD</span><span><strong>Kasel Digital</strong><small>Demo administrator</small></span></div>
+      <div className="sidebar-bottom"><span className="avatar">KD</span><span><strong>Kasel Digital</strong><small>{account?.email ?? 'Demo administrator'}</small></span></div>
     </aside>
     <div className="shell">
       <header className="topbar">
@@ -184,6 +219,12 @@ function App() {
       <main>
         <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.'}[page]}</p></div>
         {page !== 'Assistant' && page !== 'Settings' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
+          <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
+          <button className="secondary" disabled={!dirty || cloudBusy} onClick={() => void saveCloud()}>Save to cloud</button>
+          <button className="text-button" disabled={cloudBusy} onClick={() => void signOut()}>Sign out</button>
+        </section>}
+        {openAccount && <button className="text-button gate-demo" onClick={openAccount}>Open private workspace</button>}
         {installation.waiting && page !== 'Settings' && <button className="text-button" onClick={() => navigate('Settings')}>An app update is available</button>}
         {storageError && <p role="alert">Browser storage is unavailable. Changes may be lost when you close this page.</p>}
         {query ? <section className="section"><h2>Search results</h2><div className="project-grid">{filteredProjects.map(renderProject)}</div><div className="panel task-list">{matchingTasks.length ? matchingTasks.map(renderTask) : <p className="empty">No matching tasks.</p>}</div></section> : <>
@@ -206,8 +247,8 @@ function App() {
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
-          {page === 'Settings' && <WorkspaceSettings data={data} installation={installation} />}
-          {page === 'Assistant' && <Assistant data={data} today={today} update={setData} />}
+          {page === 'Settings' && <WorkspaceSettings data={data} installation={installation} privateWorkspace={Boolean(account)} />}
+          {page === 'Assistant' && <Assistant data={data} today={today} update={setData} allowModel={!account} />}
           {page === 'Operations' && <Business data={data.business} projects={data.projects}
             update={patch => setData(previous => ({...previous, business: patch(previous.business)}))} />}
           {(page === 'Social Media' || page === 'Content') && <Creative key={page} content={page === 'Content'}
@@ -246,4 +287,4 @@ function App() {
   </div>
 }
 
-createRoot(document.getElementById('root')!).render(<App />)
+createRoot(document.getElementById('root')!).render(<CloudGate render={(account, openAccount) => <App key={account?.owner ?? 'demo'} account={account} openAccount={openAccount} />} />)
