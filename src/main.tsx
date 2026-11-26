@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, X } from 'lucide-react'
 import { colors, departments, seed, statuses, type Project, type Status, type Task, type Workspace } from './data'
-import { WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
+import { PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { CloudGate, type CloudControls } from './CloudGate'
 import { Assistant } from './Assistant'
 import { defaultAutomation, reportWorkspace } from './assistant-data'
@@ -262,6 +262,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <span>Sign-in is unavailable in this demo build. Ask your workspace administrator to enable cloud sign-in.</span>
             </section>}
             <WorkspaceSettings data={data} installation={installation} privateWorkspace={Boolean(account)} />
+            {account && <div className="section"><PasswordSettings setPassword={account.setPassword} /></div>}
           </>}
           {page === 'Assistant' && <Assistant data={data} today={today} update={setData} allowModel={!account} />}
           {!team && page === 'Operations' && <Business data={data.business} projects={data.projects}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Download, RefreshCw, Smartphone } from 'lucide-react'
 import type { Workspace } from './data'
@@ -110,4 +110,42 @@ export function WorkspaceSettings({data, installation, privateWorkspace}: {data:
       <button className="primary" onClick={exportWorkspace}>Export workspace JSON</button>
     </section>
   </div>
+}
+
+
+export function PasswordSettings({setPassword}: {setPassword: (password: string) => Promise<void>}) {
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy) return
+    const form = event.currentTarget
+    const values = new FormData(form)
+    const password = String(values.get('password') ?? '')
+    if (password !== values.get('confirm')) {
+      setStatus('Passwords do not match.')
+      return
+    }
+    setBusy(true)
+    setStatus('')
+    try {
+      await setPassword(password)
+      form.reset()
+      setStatus('Password saved. You can use it on your next sign-in.')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to set your password.')
+    } finally {setBusy(false)}
+  }
+
+  return <section className="panel dev-card assistant-panel">
+    <h2>Set a sign-in password</h2>
+    <p className="dev-muted">Use a password for future sign-ins without requesting a link.</p>
+    <form onSubmit={save}>
+      <label>New password<input type="password" name="password" autoComplete="new-password" minLength={8} required /></label>
+      <label>Confirm password<input type="password" name="confirm" autoComplete="new-password" minLength={8} required /></label>
+      <button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save password'}</button>
+      {status && <p className="dev-muted" role="status">{status}</p>}
+    </form>
+  </section>
 }

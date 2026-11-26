@@ -13,9 +13,10 @@ export type CloudControls = {
   team?: Team
   switchWorkspace: () => void
   signOut: () => Promise<void>
+  setPassword: (password: string) => Promise<void>
 }
 
-function signInError(error: AuthError) {
+function signInError(error: AuthError, method: 'link' | 'password') {
   if (error.code === 'over_email_send_rate_limit') {
     return 'Supabase has reached its email sending limit. Wait before requesting another link. If this continues, ask your administrator to check email rate limits and SMTP settings in Supabase.'
   }
@@ -34,7 +35,9 @@ function signInError(error: AuthError) {
   if (error.status === 0 || (error.name === 'AuthRetryableFetchError' && !error.status)) {
     return 'Could not reach Supabase. Check your connection and try again.'
   }
-  return 'Supabase could not send a sign-in link. Ask your administrator to check the Supabase Auth logs for this attempt.'
+  return method === 'link'
+    ? 'Supabase could not send a sign-in link. Ask your administrator to check the Supabase Auth logs for this attempt.'
+    : 'Supabase could not sign you in. Ask your administrator to check the Supabase Auth logs for this attempt.'
 }
 
 export function CloudGate({ render }: {render: (options?: CloudControls, openAccount?: () => void) => ReactNode}) {
@@ -45,6 +48,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [method, setMethod] = useState<'link' | 'password'>('link')
   const [email, setEmail] = useState('')
   const [notice, setNotice] = useState('')
   const [sending, setSending] = useState(false)
@@ -79,15 +83,26 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!cloud || sending) return
+    const values = new FormData(event.currentTarget)
+    const password = String(values.get('password') ?? '')
     setSending(true)
     setNotice('')
     try {
+      if (method === 'password') {
+        const {error} = await cloud.auth.signInWithPassword({email:email.trim(),password})
+        if (error) {
+          setNotice(error.code === 'invalid_credentials'
+            ? 'Email or password is incorrect. If your account has never had a password, use a sign-in link first.'
+            : signInError(error, method))
+        }
+        return
+      }
       const {error} = await cloud.auth.signInWithOtp({email:email.trim(), options:{
         shouldCreateUser:false, emailRedirectTo:new URL(import.meta.env.BASE_URL, window.location.origin).href,
       }})
-      setNotice(error ? signInError(error) : 'Check your email for the sign-in link. Open it in this browser.')
+      setNotice(error ? signInError(error, method) : 'Check your email for the sign-in link. Open it in this browser.')
     } catch {
-      setNotice('Unable to request a sign-in link. Try again when you’re online.')
+      setNotice('Unable to reach Supabase. Try again when you’re online.')
     } finally { setSending(false) }
   }
 
@@ -108,6 +123,14 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     team:team ?? undefined,
     switchWorkspace:() => setPicker(true),
     save:(data, revision) => team ? saveTeam(team.id, data, revision) : writeCloud(owner, data, revision),
+    async setPassword(password) {
+      const {error} = await cloud!.auth.updateUser({password})
+      if (error) {
+        if (error.code === 'reauthentication_needed') throw new Error('Sign in again before setting a password.')
+        if (error.code === 'weak_password') throw new Error('Choose a stronger password that meets your workspace password policy.')
+        throw new Error('Could not update your password. Try again or check your Supabase Auth settings.')
+      }
+    },
     async signOut() {
       const {error} = await cloud!.auth.signOut({scope:'local'})
       if (error) throw error
@@ -125,7 +148,14 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     </> : <form onSubmit={signIn}>
       <h2>Sign in to your private workspace</h2>
       <label>Email<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
-      <button className="primary" disabled={sending}>{sending ? 'Sending…' : 'Send sign-in link'}</button>
+      {method === 'password' && <label>Password<input required name="password" type="password" autoComplete="current-password" /></label>}
+      <div className="creative-actions">
+        <button className="primary" disabled={sending}>{method === 'link' ? sending ? 'Sending…' : 'Send sign-in link' : sending ? 'Signing in…' : 'Sign in with password'}</button>
+        <button type="button" className="text-button" disabled={sending} onClick={() => {
+          setMethod(method === 'link' ? 'password' : 'link')
+          setNotice('')
+        }}>{method === 'link' ? 'Use a password' : 'Use a sign-in link'}</button>
+      </div>
       {notice && <p role="status" className="dev-muted">{notice}</p>}
     </form>}
     <button className="text-button gate-demo" onClick={() => setDemo(true)}>Open browser demo</button>
