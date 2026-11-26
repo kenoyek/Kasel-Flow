@@ -10,6 +10,7 @@ import { Business } from './Business'
 import { emptyBusiness } from './business-data'
 import { Creative } from './Creative'
 import { Development } from './Development'
+import { useTeamUpdates } from './useTeamUpdates'
 import { TeamWorkload, unassigned } from './TeamWorkload'
 import { listTaskAssignees, type TaskAssignee } from './team-workspace'
 import { githubRepository } from './development-data'
@@ -63,6 +64,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [rosterError, setRosterError] = useState(false)
   const [rosterAttempt, setRosterAttempt] = useState(0)
   const teamId = team?.id
+  const {latest, connection, refreshing, refreshError, refresh} = useTeamUpdates(teamId)
+  const newer = latest && latest.revision > revision ? latest : null
   const [search, setSearch] = useState('')
   const [overdueOnly, setOverdueOnly] = useState(false)
   const [modal, setModal] = useState<'project' | 'task' | null>(null)
@@ -102,8 +105,26 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
 
+  useEffect(() => {
+    if (!newer || dirty || modal || cloudBusy) return
+    setData(newer.data)
+    setSaved(newer.data)
+    setRevision(newer.revision)
+    setCloudMessage('A newer team version was loaded.')
+    setRosterAttempt(value => value + 1)
+  }, [newer, dirty, modal, cloudBusy])
+
+  function loadNewerVersion() {
+    if (!newer || cloudBusy || (dirty && !window.confirm('Load the newer team version and discard your unsaved edits?'))) return
+    setData(newer.data)
+    setSaved(newer.data)
+    setRevision(newer.revision)
+    setCloudMessage('A newer team version was loaded.')
+    setRosterAttempt(value => value + 1)
+  }
+
   async function saveCloud() {
-    if (!account || !dirty || cloudBusy) return
+    if (!account || !dirty || cloudBusy || newer) return
     setCloudBusy(true)
     setCloudMessage('')
     try {
@@ -256,9 +277,16 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
-          {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy} onClick={() => void saveCloud()}>Save to cloud</button>}
+          {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy || Boolean(newer)} onClick={() => void saveCloud()}>Save to cloud</button>}
           <button className="text-button" disabled={cloudBusy} onClick={switchWorkspace}>Switch workspace</button>
           <button className="text-button" disabled={cloudBusy} onClick={() => void signOut()}>Sign out</button>
+        </section>}
+        {team && <section className="panel cloud-bar" aria-label="Team synchronization">
+          <span role="status">{refreshError ? 'Could not check the team workspace. Your open copy is still available.' :
+            newer ? 'A newer team version is available. Export unsaved edits in Settings before replacing your copy.' :
+            connection === 'live' ? 'Live updates connected' : connection === 'connecting' ? 'Connecting live updates…' : 'Live updates unavailable. You can check manually.'}</span>
+          <button className="text-button" disabled={refreshing} onClick={refresh}>{refreshing ? 'Checking…' : 'Check for updates'}</button>
+          {newer && <button className="secondary" disabled={cloudBusy} onClick={loadNewerVersion}>Load newer version</button>}
         </section>}
         {installation.waiting && page !== 'Settings' && <button className="text-button" onClick={() => navigate('Settings')}>An app update is available</button>}
         {storageError && <p role="alert">Browser storage is unavailable. Changes may be lost when you close this page.</p>}

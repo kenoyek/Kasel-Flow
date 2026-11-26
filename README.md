@@ -52,11 +52,15 @@ This pilot stores one owner-only snapshot per user. Team workspaces use separate
 
 Apply the Supabase migrations in order. Sign in with a provisioned, verified account and use **Switch workspace** to create a team or accept an invitation. Team owners grant viewer or editor access, change roles, and remove members. Invitations are matched to the recipient’s verified email and expire after seven days. They appear in the recipient's workspace switcher. Kasel OS does not send an invitation email.
 
-A team workspace shares its projects and tasks with every member. Editors and owners save explicitly, and older revisions cannot overwrite newer saves. Viewers can browse and export the records they can see. Private client, finance, creative, development, and assistant records remain in the private workspace. Project-specific access, ownership transfer, and live collaboration remain pending.
+A team workspace shares its projects and tasks with every member. Editors and owners save explicitly, and older revisions cannot overwrite newer saves. Viewers can browse and export the records they can see. Private client, finance, creative, development, and assistant records remain in the private workspace. Project-specific access and ownership transfer remain pending.
 
 ### Team assignments
 
 After applying `202611260003_team_task_assignment.sql`, team owners and editors can assign a shared task to a team member and save it to the cloud. **Workload** shows open and overdue counts and opens the corresponding task list. Team members can see assignee labels, which are the verified email addresses used for membership. Removing a member clears their assignments and advances the workspace revision so older tabs cannot restore them by saving a stale snapshot.
+
+### Live team updates
+
+Apply `202611260004_team_live_updates.sql` to enable Supabase Realtime for team workspaces. A teammate's cloud save refreshes clean copies of the workspace. If you have unsaved edits, Kasel OS keeps them open and lets you export them before loading the newer version. Open forms are kept intact until you close or save them. Use **Check for updates** if Realtime is unavailable. Saves still use revision checks, and private workspace data stays out of the team subscription.
 
 ## Run locally
 
