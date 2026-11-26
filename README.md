@@ -20,6 +20,14 @@ Open **Operations** to manage leads and clients, track proposals, contracts, inv
 
 Use **Client portal preview** to inspect a client's shared projects, milestones, deliverables, approvals, and issued invoices, and to simulate requests, issues, messages, and decisions. Grant projects from the client editor, then explicitly share each client-facing record. The preview uses local demo data. Client sign-in, server-side access controls and audit storage, payment processing, and document delivery require a backend.
 
+## Assistant and automation
+
+Open **Assistant** for local reports, recent report runs, and review reminders. To draft tasks, paste one brief item per line, preview and edit the titles, then confirm before creation.
+
+Optional model drafting uses OpenRouter from the local Vite development server. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in the server process environment through your local secret manager or shell, then start Vite bound to loopback with `npx --no-install vite --host 127.0.0.1`. The key is server-side. Each request sends the displayed prompt and editable context to OpenRouter. Use sample data. Reports and local reminders work without provider credentials.
+
+Production model access, scheduled background jobs, and Resend email delivery require an authenticated backend.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

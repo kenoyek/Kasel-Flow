@@ -1,3 +1,4 @@
+import { defaultAutomation, type Automation } from './assistant-data'
 import { emptyBusiness, type BusinessData } from './business-data'
 import type { CreativeRecord } from './creative-data'
 import type { DevelopmentRecord } from './development-data'
@@ -5,7 +6,7 @@ import type { DevelopmentRecord } from './development-data'
 export type Status = 'To do' | 'In progress' | 'In review' | 'Done'
 export type Project = { id: string; name: string; department: string; description: string; color: string; repository?: string }
 export type Task = { id: string; title: string; project: string; status: Status; due: string; sprint?: string }
-export type Workspace = { projects: Project[]; tasks: Task[]; development: DevelopmentRecord[]; creative: CreativeRecord[]; business: BusinessData }
+export type Workspace = { projects: Project[]; tasks: Task[]; development: DevelopmentRecord[]; creative: CreativeRecord[]; business: BusinessData; automation: Automation }
 export const departments = ['Development', 'Social Media', 'Content', 'Operations']
 export const statuses: Status[] = ['To do', 'In progress', 'In review', 'Done']
 export const colors = ['violet', 'blue', 'pink', 'teal', 'gold']
@@ -13,6 +14,7 @@ export const seed: Workspace = {
   development: [],
   creative: [],
   business: emptyBusiness,
+  automation: defaultAutomation,
   projects: [
     {id:'teach',name:'TeachEasy',department:'Development',description:'School management platform',color:'violet'},
     {id:'asele',name:'Asele',department:'Development',description:'Marketplace product development',color:'blue'},
