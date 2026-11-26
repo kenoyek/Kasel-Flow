@@ -46,7 +46,13 @@ Apply the migration in `supabase/migrations/` to your Supabase project. In Supab
 
 Pilot users open their email link in the same browser used to request it. Each user starts with an empty private workspace and must use **Save to cloud** to persist changes. A stale browser tab cannot overwrite a newer save through the app. Export unsaved work before reloading after a conflict. The browser demo has separate records. OpenRouter drafting stays in the demo.
 
-This pilot stores one owner-only snapshot per user. Team organizations, invites, granular project and finance permissions, and automatic demo data import are pending. For a shared production deployment, finish those controls before inviting client or team users.
+This pilot stores one owner-only snapshot per user. Team workspaces use separate records. Granular project and finance permissions and automatic demo data import are pending. For a shared production deployment, finish those controls before inviting client or team users.
+
+## Team workspace pilot
+
+Apply both Supabase migrations in order. Sign in with a provisioned, verified account and use **Switch workspace** to create a team or accept an invitation. Team owners grant viewer or editor access, change roles, and remove members. Invitations are matched to the recipient’s verified email and expire after seven days. They appear in the recipient's workspace switcher. Kasel OS does not send an invitation email.
+
+A team workspace shares its projects and tasks with every member. Editors and owners save explicitly, and older revisions cannot overwrite newer saves. Viewers can browse and export the records they can see. Private client, finance, creative, development, and assistant records remain in the private workspace. Project-specific access, ownership transfer, and live collaboration remain pending.
 
 ## Run locally
 
@@ -59,4 +65,4 @@ npm run dev
 
 Run `npm run build` to type-check the application and produce the production bundle in `dist/`.
 
-The demo saves changes in this browser's local storage. Use it with sample data only. Private cloud sign-in is available when configured. Shared team storage and tenant permissions are pending. See [the master development brief](docs/master-development-brief.md) for the implementation roadmap.
+The demo saves changes in this browser's local storage. Use it with sample data only. Private cloud sign-in is available when configured. Team projects and tasks can be shared when Supabase is configured. See [the master development brief](docs/master-development-brief.md) for the implementation roadmap.

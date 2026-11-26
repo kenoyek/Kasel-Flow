@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { cloud, readCloud, writeCloud, type CloudWorkspace } from './cloud-workspace'
+import { TeamPicker } from './TeamPicker'
+import { readTeam, saveTeam, type Team } from './team-workspace'
 import type { Workspace } from './data'
 
 export type CloudControls = {
@@ -8,13 +10,17 @@ export type CloudControls = {
   email: string
   initial: CloudWorkspace
   save: (workspace: Workspace, revision: number) => Promise<number>
+  team?: Team
+  switchWorkspace: () => void
   signOut: () => Promise<void>
 }
 
 export function CloudGate({ render }: {render: (options?: CloudControls, openAccount?: () => void) => ReactNode}) {
   const [session, setSession] = useState<Session | null>()
+  const [picker, setPicker] = useState(false)
+  const [team, setTeam] = useState<Team | null>(null)
   const [demo, setDemo] = useState(false)
-  const [workspace, setWorkspace] = useState<{owner:string; snapshot:CloudWorkspace} | null>(null)
+  const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [email, setEmail] = useState('')
@@ -26,6 +32,8 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     if (!cloud) return
     const subscription = cloud.auth.onAuthStateChange((event, current) => {
       if (event === 'SIGNED_OUT') {
+        setTeam(null)
+        setPicker(false)
         setWorkspace(null)
         setLoadError('')
       }
@@ -35,15 +43,16 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   }, [])
 
   useEffect(() => {
-    if (!owner || demo) return
+    if (!owner || demo || picker) return
     const controller = new AbortController()
-    readCloud(owner, controller.signal).then(snapshot => {
-      if (!controller.signal.aborted) setWorkspace({owner, snapshot})
+    const request = team ? readTeam(team.id, controller.signal) : readCloud(owner, controller.signal)
+    request.then(snapshot => {
+      if (!controller.signal.aborted) setWorkspace({owner, team:team?.id, snapshot})
     }).catch(() => {
-      if (!controller.signal.aborted) setLoadError('The private workspace could not be loaded.')
+      if (!controller.signal.aborted) setLoadError('The selected workspace could not be loaded.')
     })
     return () => controller.abort()
-  }, [owner, demo, attempt])
+  }, [owner, demo, picker, team, attempt])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -60,13 +69,23 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     } finally { setSending(false) }
   }
 
+  function openWorkspace(next: Team | null) {
+    setWorkspace(null)
+    setLoadError('')
+    setTeam(next)
+    setPicker(false)
+  }
+
   if (!cloud) return render()
   if (demo) return render(undefined, () => {setDemo(false);setLoadError('');setWorkspace(null)})
-  if (owner && workspace?.owner === owner && session) return render({
+  if (owner && picker) return <TeamPicker owner={owner} openPrivate={() => openWorkspace(null)} openTeam={openWorkspace} />
+  if (owner && workspace?.owner === owner && workspace.team === team?.id && session) return render({
     owner,
     email:session.user.email ?? 'Signed in',
     initial:workspace.snapshot,
-    save:(data, revision) => writeCloud(owner, data, revision),
+    team:team ?? undefined,
+    switchWorkspace:() => setPicker(true),
+    save:(data, revision) => team ? saveTeam(team.id, data, revision) : writeCloud(owner, data, revision),
     async signOut() {
       const {error} = await cloud!.auth.signOut({scope:'local'})
       if (error) throw error
@@ -78,7 +97,8 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   return <main className="account-gate"><section className="panel dev-card assistant-panel">
     <h1>Kasel OS</h1>
     {session === undefined || owner ? <>
-      <p className="dev-muted" role="status">{loadError || 'Loading your private workspace…'}</p>
+      <p className="dev-muted" role="status">{loadError || 'Loading workspace…'}</p>
+      {owner && <button className="text-button gate-demo" onClick={() => setPicker(true)}>Choose workspace</button>}
       {loadError && <button className="primary" onClick={() => {setLoadError('');setAttempt(current => current + 1)}}>Retry load</button>}
     </> : <form onSubmit={signIn}>
       <h2>Sign in to your private workspace</h2>

@@ -200,3 +200,9 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .cloud-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 12px; margin: 0 0 15px; padding: 10px 12px; font-size: 12px }
 .cloud-bar > span { flex: 1 1 180px }
 .cloud-bar button:disabled { opacity: .55; cursor: default }
+.team-picker { max-width: 1000px; min-height: 100vh }
+.team-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; overflow-wrap: anywhere }
+.team-row + .team-row { border-top: 1px solid var(--line) }
+.team-message { margin-bottom: 12px; color: var(--muted); font-size: 13px }
+.task-row:disabled { cursor: default }
+.task-row:disabled:hover { background: none }
