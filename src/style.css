@@ -247,3 +247,5 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .destructive-primary { background: #a91f33 }
 .destructive-primary:hover { background: #871328 }
 .destructive-primary:disabled { opacity: .55; cursor: default }
+.team-workspace-label { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0 }
+.team-workspace-row .primary { margin-top: 0 }

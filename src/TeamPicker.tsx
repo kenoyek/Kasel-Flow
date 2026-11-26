@@ -161,10 +161,10 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
       <section className="panel dev-card assistant-panel"><h2>Teams</h2>
         {busy && <p role="status" className="dev-muted">Working…</p>}
         {!busy && !teams.length && <p className="dev-muted">{openPrivate ? 'No team workspaces yet.' : 'No teams have been assigned to this account yet.'}</p>}
-        {teams.map(team => <div className="team-row" key={team.id}>
-          <button className="text-button" disabled={busy} onClick={() => openTeam(team)}>{team.name}</button>
-          <span className="status">{team.role}</span>
-          {team.role === 'owner' && <button className="secondary" disabled={busy} onClick={() => void run(() => loadRoster(team),'Could not load the team roster.')}>Manage {team.name}</button>}
+        {teams.map(team => <div className="team-row team-workspace-row" key={team.id}>
+          <div className="team-workspace-label"><strong>{team.name}</strong><span className="status">{team.role}</span></div>
+          <button className="primary" aria-label={'Open ' + team.name + ' workspace'} disabled={busy} onClick={() => openTeam(team)}>Open workspace</button>
+          {team.role === 'owner' && <button className="text-button" disabled={busy} onClick={() => void run(() => loadRoster(team),'Could not load the team roster.')}>Manage {team.name}</button>}
         </div>)}
         <button className="text-button" disabled={busy} onClick={() => void run(async () => {await refresh()},'Could not refresh workspaces.')}>Refresh workspaces</button>
       </section>
@@ -184,7 +184,10 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
           },'Invitation unavailable. Refresh and try again.')}>Accept invitation</button>
         </div>)}
       </section>
-      {managed && <section className="panel dev-card assistant-panel"><h2>{managed.name} members</h2>
+      {managed && <section className="panel dev-card assistant-panel">
+        <div className="dev-card-heading"><h2>{managed.name} members</h2>
+          <button className="secondary" disabled={busy} onClick={() => openTeam(managed)}>Go to workspace</button>
+        </div>
         {members.map(member => <div className="team-row" key={member.user_id}><span>{member.label}</span>
           {member.member_role === 'owner' ? <span className="status">owner</span> : <>
             <select aria-label={'Role for ' + member.label} value={member.member_role} disabled={busy} onChange={event => {
