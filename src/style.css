@@ -213,3 +213,9 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 }
 .workload-row { grid-template-columns: minmax(0,1fr) auto auto; text-align: left }
 .workload-row strong, .task-name small { overflow-wrap: anywhere }
+.activity-list { list-style: none; margin: 0; padding: 0 15px }
+.activity-list li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: 16px; row-gap: 5px; padding: 12px 0; overflow-wrap: anywhere }
+.activity-list li + li { border-top: 1px solid var(--line) }
+.activity-list li strong { font-size: 13px }
+.activity-list li p, .activity-list time { margin-top: 4px; color: var(--muted); font-size: 12px }
+.activity-footer { padding: 12px 15px; border-top: 1px solid var(--line) }

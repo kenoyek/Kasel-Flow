@@ -62,6 +62,10 @@ After applying `202611260003_team_task_assignment.sql`, team owners and editors 
 
 Apply `202611260004_team_live_updates.sql` to enable Supabase Realtime for team workspaces. A teammate's cloud save refreshes clean copies of the workspace. If you have unsaved edits, Kasel OS keeps them open and lets you export them before loading the newer version. Open forms are kept intact until you close or save them. Use **Check for updates** if Realtime is unavailable. Saves still use revision checks, and private workspace data stays out of the team subscription.
 
+### Team activity
+
+Apply `202611260005_team_activity.sql` to enable the **Activity** view. It records future team creation and shared project or task changes with their revision, time, and verified actor label. Team members can read their own team's history. The log starts at installation and stores change counts without copying record contents. Client-side users cannot edit or delete it.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.
