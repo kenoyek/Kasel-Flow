@@ -204,8 +204,6 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .team-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; overflow-wrap: anywhere }
 .team-row + .team-row { border-top: 1px solid var(--line) }
 .team-message { margin-bottom: 12px; color: var(--muted); font-size: 13px }
-.task-row:disabled { cursor: default }
-.task-row:disabled:hover { background: none }
 .top-sign-in { flex-shrink: 0 }
 @media (max-width: 390px) {
   .topbar .search input { min-width: 56px }
@@ -233,3 +231,12 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .board-announcement:empty { margin: 0 }
 @media (max-width: 1050px) { .task-board { grid-template-columns: repeat(2,minmax(0,1fr)) } }
 @media (max-width: 430px) { .task-board { grid-template-columns: minmax(0,1fr) } }
+.task-checklist { border-top: 1px solid var(--line); margin-top: 13px; padding-top: 11px }
+.task-checklist h3 { font-size: 14px }
+.task-checklist ul { list-style: none; padding: 0; margin: 8px 0 }
+.task-checklist li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere }
+.task-checklist li > span:first-of-type { flex: 1; min-width: 0 }
+.task-checklist .compact { flex-shrink: 0 }
+.checklist-entry { display: flex; gap: 8px; margin-top: 10px }
+.checklist-entry input { flex: 1; min-width: 0 }
+.task-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; font-size: 13px }

@@ -70,6 +70,10 @@ Apply `202611260005_team_activity.sql` to enable the **Activity** view. It recor
 
 Open **Board** to group tasks by status and filter by project, priority, or team assignee. Move tasks by dragging a card on desktop or using its status dropdown. Tasks without a saved priority display as Normal. Changes follow the workspace's existing save behavior, and team viewers can browse the board with read-only access.
 
+## Task details and checklists
+
+Open a task from the list or board to add a brief and a checklist. Check items off as work progresses. Board cards show checklist progress. Viewers can open task details, including the description and checklist. Team edits follow the existing **Save to cloud** workflow.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

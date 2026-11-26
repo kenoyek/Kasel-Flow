@@ -46,7 +46,7 @@ export function TaskBoard({tasks, readOnly, details, onEdit, onMove}: {
             setDragged(task.id)
           }}
           onDragEnd={() => setDragged('')}>
-          {readOnly ? <strong>{task.title}</strong> : <button type="button" className="text-button board-task-title" onClick={() => onEdit(task)}>{task.title}</button>}
+          <button type="button" className="text-button board-task-title" onClick={() => onEdit(task)}>{task.title}</button>
           {details(task)}
           <div className="board-task-meta">
             <span className="status">{task.priority ?? 'Normal'}</span>
