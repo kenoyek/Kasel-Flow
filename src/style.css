@@ -211,3 +211,5 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
   .topbar .search input { min-width: 56px }
   .topbar .search { padding-inline: 6px }
 }
+.workload-row { grid-template-columns: minmax(0,1fr) auto auto; text-align: left }
+.workload-row strong, .task-name small { overflow-wrap: anywhere }

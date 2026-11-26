@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, X } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
 import { colors, departments, seed, statuses, type Project, type Status, type Task, type Workspace } from './data'
 import { PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { CloudGate, type CloudControls } from './CloudGate'
@@ -10,6 +10,8 @@ import { Business } from './Business'
 import { emptyBusiness } from './business-data'
 import { Creative } from './Creative'
 import { Development } from './Development'
+import { TeamWorkload, unassigned } from './TeamWorkload'
+import { listTaskAssignees, type TaskAssignee } from './team-workspace'
 import { githubRepository } from './development-data'
 import './style.css'
 
@@ -19,6 +21,7 @@ const links = [
   { label: 'Projects', icon: FolderKanban },
   { label: 'Tasks', icon: ListTodo },
   { label: 'Calendar', icon: CalendarDays },
+  { label: 'Workload', icon: Users },
   { label: 'Assistant', icon: Sparkles },
   { label: 'Settings', icon: Settings2 },
 ]
@@ -54,6 +57,12 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [page, setPage] = useState('Overview')
   const [projectFilter, setProjectFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = useState('')
+  const [openOnly, setOpenOnly] = useState(false)
+  const [roster, setRoster] = useState<TaskAssignee[] | null>(null)
+  const [rosterError, setRosterError] = useState(false)
+  const [rosterAttempt, setRosterAttempt] = useState(0)
+  const teamId = team?.id
   const [search, setSearch] = useState('')
   const [overdueOnly, setOverdueOnly] = useState(false)
   const [modal, setModal] = useState<'project' | 'task' | null>(null)
@@ -67,6 +76,18 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     catch { return false }
   })
   const [storageError, setStorageError] = useState(false)
+
+  useEffect(() => {
+    if (!teamId) return
+    const controller = new AbortController()
+    setRosterError(false)
+    listTaskAssignees(teamId, controller.signal).then(members => {
+      if (!controller.signal.aborted) setRoster(members)
+    }).catch(() => {
+      if (!controller.signal.aborted) setRosterError(true)
+    })
+    return () => controller.abort()
+  }, [teamId, rosterAttempt])
 
   useEffect(() => {
     if (account) return
@@ -127,12 +148,15 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const matchingTasks = data.tasks.filter(task =>
     (task.title + ' ' + (data.projects.find(project => project.id === task.project)?.name ?? '')).toLowerCase().includes(query))
   const filteredTasks = (overdueOnly ? overdue : tasks).filter(task =>
-    (!projectFilter || task.project === projectFilter) && (!statusFilter || task.status === statusFilter))
+    (!projectFilter || task.project === projectFilter) && (!statusFilter || task.status === statusFilter) &&
+    (!assigneeFilter || (task.assignee ?? unassigned) === assigneeFilter) && (!openOnly || task.status !== 'Done'))
 
   function navigate(next: string, project = '', status = '', onlyOverdue = false) {
     setPage(next)
     setProjectFilter(project)
     setStatusFilter(status)
+    setAssigneeFilter('')
+    setOpenOnly(false)
     setOverdueOnly(onlyOverdue)
     setSearch('')
     setMobileNav(false)
@@ -170,7 +194,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       navigate(department && department === item.department ? department : 'Projects')
     } else {
       const sprint = data.development.find(record => record.kind === 'sprint' && record.id === value('sprint') && record.project === value('project'))
-      const item: Task = {id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,due:value('due'),sprint:sprint?.id}
+      const item: Task = {id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,due:value('due'),sprint:sprint?.id,assignee:roster ? value('assignee') || undefined : editingTask?.assignee}
       setData(previous => ({...previous,tasks:editingTask ? previous.tasks.map(task => task.id === item.id ? item : task) : [...previous.tasks,item]}))
       if (!editingTask && page !== 'Development') navigate('Tasks', item.project)
     }
@@ -184,9 +208,10 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
 
   function renderTask(task: Task) {
     const project = data.projects.find(item => item.id === task.project)
+    const assignee = roster?.find(member => member.user_id === task.assignee)?.label
     return <button className="task-row" key={task.id} disabled={readOnly} onClick={() => openTask(task)}>
       {task.status === 'Done' ? <CheckCircle2 className="task-check done" /> : <Circle className="task-check" />}
-      <span className="task-name"><strong>{task.title}</strong><small>{project?.name}</small></span>
+      <span className="task-name"><strong>{task.title}</strong><small>{project?.name}{assignee && ' · ' + assignee}</small></span>
       <span className={'status ' + task.status.toLowerCase().replace(' ', '-')}>{task.status}</span>
       <span className="due">{formatDate(task.due)}</span>
     </button>
@@ -210,7 +235,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     <aside className={mobileNav ? 'sidebar visible' : 'sidebar'}>
       <button className="brand" onClick={() => navigate('Overview')}><span className="brand-mark">K</span><span>Kasel <b>OS</b><small>AGENCY WORKSPACE</small></span></button>
       <div className="workspace-label"><span className="workspace-icon">KD</span><span><strong>{team?.name ?? 'Kasel Digital'}</strong><small>{team ? 'Team workspace' : account ? 'Private cloud workspace' : 'Demo workspace'}</small></span></div>
-      <nav aria-label="Workspace"><p>WORKSPACE</p>{links.filter(link => !team || link.label !== 'Assistant').map(({label,icon:Icon}) => <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}{page === label && <ChevronRight size={15} />}</button>)}
+      <nav aria-label="Workspace"><p>WORKSPACE</p>{links.filter(link => team ? link.label !== 'Assistant' : link.label !== 'Workload').map(({label,icon:Icon}) => <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}{page === label && <ChevronRight size={15} />}</button>)}
       <p>DEPARTMENTS</p>{departments.map((label,index) => {const Icon = departmentIcons[index]; return <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}</button>})}</nav>
       <div className="sidebar-bottom"><span className="avatar">KD</span><span><strong>Kasel Digital</strong><small>{account?.email ?? 'Demo administrator'}</small></span></div>
     </aside>
@@ -227,8 +252,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{!reviews.length && !reviewExtras && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.'}[page]}</p></div>
-        {!readOnly && page !== 'Assistant' && page !== 'Settings' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.'}[page]}</p></div>
+        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
           {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy} onClick={() => void saveCloud()}>Save to cloud</button>}
@@ -257,6 +282,13 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
+          {page === 'Workload' && (roster ? <TeamWorkload tasks={data.tasks} members={roster} today={today} openTasks={id => {
+            navigate('Tasks')
+            setAssigneeFilter(id)
+            setOpenOnly(true)
+          }} /> : <section className="panel empty" role="status">
+            {rosterError ? <>Team assignees are unavailable. <button className="text-button" onClick={() => setRosterAttempt(value => value + 1)}>Retry roster</button></> : 'Loading team assignees…'}
+          </section>)}
           {page === 'Settings' && <>
             {!account && !openAccount && <section className="panel cloud-bar" aria-label="Sign-in availability">
               <span>Sign-in is unavailable in this demo build. Ask your workspace administrator to enable cloud sign-in.</span>
@@ -286,7 +318,12 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
             onEditProject={openProject} onNewTask={startDevelopmentTask} onEditTask={openTask} />}
           {(page === 'Overview' || page === 'Projects' || (department && (team || page !== 'Development'))) && <section className="section"><div className="section-heading"><h2>{page === 'Overview' ? 'Projects' : department ? 'Department projects' : 'All projects'}</h2>{page === 'Overview' && <button className="text-button" onClick={() => navigate('Projects')}>View all projects <ArrowRight size={15} /></button>}</div><div className="project-grid">{(page === 'Overview' ? projects.slice(0,3) : projects).map(renderProject)}</div>{!projects.length && <p className="panel empty">No projects yet.</p>}</section>}
           {(page === 'Tasks' || page === 'Calendar' || (department && (team || page !== 'Development'))) && <section className="section">
-            <div className="filters"><label>Project <select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">All projects</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label>Status <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status}>{status}</option>)}</select></label>{department && !readOnly && <button className="text-button" onClick={() => projects.length ? openTask() : openProject()}><Plus size={16} />{projects.length ? 'New task' : 'New project'}</button>}<span>{filteredTasks.length} tasks</span>{overdueOnly && <button className="text-button" onClick={() => setOverdueOnly(false)}>Clear overdue filter <X size={14} /></button>}</div>
+            <div className="filters"><label>Project <select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">All projects</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label>Status <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status}>{status}</option>)}</select></label>{department && !readOnly && <button className="text-button" onClick={() => projects.length ? openTask() : openProject()}><Plus size={16} />{projects.length ? 'New task' : 'New project'}</button>}{roster && <label>Assignee <select value={assigneeFilter} onChange={event => setAssigneeFilter(event.target.value)}>
+              <option value="">All assignees</option><option value={unassigned}>Unassigned</option>
+              {roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
+            </select></label>}
+            {openOnly && <button className="text-button" onClick={() => setOpenOnly(false)}>Show completed tasks</button>}
+            <span>{filteredTasks.length} tasks</span>{overdueOnly && <button className="text-button" onClick={() => setOverdueOnly(false)}>Clear overdue filter <X size={14} /></button>}</div>
             <div className="panel task-list">{(page === 'Calendar' ? [...filteredTasks].sort((first,second) => (first.due || '9999').localeCompare(second.due || '9999')) : filteredTasks).map(renderTask)}{!filteredTasks.length && <p className="empty">No tasks match these filters.</p>}</div>
           </section>}
         </>}
@@ -296,7 +333,9 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       <form onSubmit={saveItem}>
         <div className="dialog-heading"><h2 id="editor-title">{(modal === 'task' ? editingTask : editingProject) ? 'Edit' : 'New'} {modal}</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
         <label>{modal === 'project' ? 'Project name' : 'Task title'}<input name="name" required maxLength={100} defaultValue={modal === 'project' ? editingProject?.name : editingTask?.title} autoFocus /></label>
-        {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => setTaskProject(event.target.value)}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{!team && data.projects.some(project => project.id === taskProject && project.department === 'Development') && <label>Sprint<select name="sprint" key={taskProject} defaultValue={editingTask?.project === taskProject ? editingTask.sprint ?? '' : ''}><option value="">Backlog</option>{data.development.filter(record => record.kind === 'sprint' && record.project === taskProject).map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</select></label>}</>}
+        {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => setTaskProject(event.target.value)}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
+          <option value="">Unassigned</option>{roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
+        </select></label>}{!team && data.projects.some(project => project.id === taskProject && project.department === 'Development') && <label>Sprint<select name="sprint" key={taskProject} defaultValue={editingTask?.project === taskProject ? editingTask.sprint ?? '' : ''}><option value="">Backlog</option>{data.development.filter(record => record.kind === 'sprint' && record.project === taskProject).map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</select></label>}</>}
         <div className="dialog-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>Cancel</button><button className="primary" type="submit">Save {modal}</button></div>
       </form>
     </dialog>}
