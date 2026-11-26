@@ -44,7 +44,7 @@ Native signing, device testing, subscriptions, and self-service tenant onboardin
 
 Apply the migration in `supabase/migrations/` to your Supabase project. In Supabase Auth, provision pilot users and allow the deployed app's root URL as a sign-in redirect. Keep email link sign-in enabled. Set the public build variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, then rebuild. Use a Supabase **publishable** key. Set these variables in the hosting provider as well as in any Codex environment used for development. Redeploy after changing them because Vite reads them at build time. With both variables omitted, **Sign in** opens Settings and explains that cloud sign-in is unavailable in that build.
 
-Signed-out users start in the browser demo. Use **Sign in** in the top bar to authenticate and open your private cloud workspace. The sign-in form opens with email and password. Custom SMTP is optional for password sign-in. Configure a verified sender with your SMTP provider and add those credentials in Supabase Auth when you need reliable email delivery. Users without a password can choose **Use a sign-in link** and open the email link in the same browser used to request it, then set a password from **Settings** for future sign-ins. Each user starts with an empty private workspace and must use **Save to cloud** to persist changes. A stale browser tab cannot overwrite a newer save through the app. Export unsaved work before reloading after a conflict. The browser demo has separate records. OpenRouter drafting stays in the demo.
+Signed-out users start in the browser demo. Use **Sign in** in the top bar to authenticate and open your private cloud workspace. The sign-in form opens with email and password. Custom SMTP is optional for password sign-in. Configure a verified sender with your SMTP provider and add those credentials in Supabase Auth when you need reliable email delivery. Users without a password can choose **Use a sign-in link** and open the email link in the same browser used to request it, then set a password from **Settings** for future sign-ins. Workspace administrators can use a private workspace and must use **Save to cloud** to persist changes. Staff accounts open the team picker after sign-in. A stale browser tab cannot overwrite a newer save through the app. Export unsaved work before reloading after a conflict. The browser demo has separate records. OpenRouter drafting stays in the demo.
 
 This pilot stores one owner-only snapshot per user. Team workspaces use separate records. Granular project and finance permissions and automatic demo data import are pending. For a shared production deployment, finish those controls before inviting client or team users.
 
@@ -79,6 +79,12 @@ Open a task from the list or board to add a brief and a checklist. Check items o
 The canonical site is `https://os.kasel.digital/`. Add `os.kasel.digital` to the Kasel OS Vercel project's **Domains** settings and configure the exact DNS record Vercel shows. Wait for Vercel to verify the domain and issue its HTTPS certificate.
 
 In Supabase **Authentication → URL Configuration**, set **Site URL** to `https://os.kasel.digital` and allow `https://os.kasel.digital/` as a redirect URL. Keep `https://kaselos.vercel.app/` allowed while it still serves the app. Start and finish email sign-in on the same origin because the sign-in request is tied to its browser. Existing users sign in again on the new hostname. Save pending cloud edits on the old hostname before switching. Browser demo records and installed web apps are also specific to their origin.
+
+### New staff access
+
+Apply `202611260008_require_private_workspace_access.sql` to make new users team-only. Provision and confirm their Supabase Auth account, then invite their email from the appropriate team. After sign-in, they can accept invitations and open teams they belong to. They cannot read or create a private workspace or create teams. Existing team owners and accounts with saved private workspaces retain their administrator access.
+
+To grant administrator access to a future administrator, a database administrator can insert that user's Supabase Auth ID into `public.workspace_admin_access (user_id)`. The user can then sign out and back in to pick up the grant.
 
 ## Run locally
 

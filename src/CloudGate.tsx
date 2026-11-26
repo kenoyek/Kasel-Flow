@@ -43,6 +43,7 @@ function signInError(error: AuthError, method: 'link' | 'password') {
 
 export function CloudGate({ render }: {render: (options?: CloudControls, openAccount?: () => void) => ReactNode}) {
   const [session, setSession] = useState<Session | null>()
+  const [access, setAccess] = useState<{owner: string; allowed: boolean; missing?: boolean} | null>(null)
   const [picker, setPicker] = useState<false | 'teams' | 'invitations'>(false)
   const [team, setTeam] = useState<Team | null>(null)
   const [demo, setDemo] = useState(false)
@@ -57,11 +58,15 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [notice, setNotice] = useState('')
   const [sending, setSending] = useState(false)
   const owner = session?.user.id
+  const resolvedAccess = owner && access?.owner === owner ? access : null
+  const teamOnly = resolvedAccess?.allowed === false
+  const privateAllowed = resolvedAccess?.allowed === true
 
   useEffect(() => {
     if (!cloud) return
     const subscription = cloud.auth.onAuthStateChange((event, current) => {
       if (event === 'SIGNED_OUT') {
+        setAccess(null)
         setTeam(null)
         setPicker(false)
         setSignInOpen(false)
@@ -74,7 +79,23 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   }, [])
 
   useEffect(() => {
-    if (!owner || inDemo || picker) return
+    if (!cloud || !owner || inDemo) return
+    const controller = new AbortController()
+    void cloud.rpc('can_use_private_workspace').abortSignal(controller.signal).then(({data,error}) => {
+      if (controller.signal.aborted) return
+      if (error?.code === 'PGRST202') {
+        setAccess({owner, allowed:false, missing:true})
+      } else if (error || typeof data !== 'boolean') {
+        setLoadError('Could not check workspace access. Try loading again.')
+      } else {
+        setAccess({owner, allowed:data})
+      }
+    })
+    return () => controller.abort()
+  }, [owner, inDemo, attempt])
+
+  useEffect(() => {
+    if (!owner || inDemo || picker || (!team && !privateAllowed)) return
     const controller = new AbortController()
     const request = team ? readTeam(team.id, controller.signal) : readCloud(owner, controller.signal)
     request.then(snapshot => {
@@ -83,7 +104,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       if (!controller.signal.aborted) setLoadError('The selected workspace could not be loaded.')
     })
     return () => controller.abort()
-  }, [owner, inDemo, picker, team, attempt])
+  }, [owner, inDemo, picker, team, attempt, privateAllowed])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -112,6 +133,13 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     } catch {
       setNotice('Unable to reach Supabase. Try again when you’re online.')
     } finally { setSending(false) }
+  }
+
+  async function signOut() {
+    const {error} = await cloud!.auth.signOut({scope:'local'})
+    if (error) throw error
+    setWorkspace(null)
+    setLoadError('')
   }
 
   function openWorkspace(next: Team | null) {
@@ -166,8 +194,12 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       {signInForm(() => setSignInOpen(false))}
     </dialog>}
   </>
-  if (owner && picker) return <TeamPicker owner={owner} focusInvites={picker === 'invitations'} openPrivate={() => openWorkspace(null)} openTeam={openWorkspace} />
-  if (owner && workspace?.owner === owner && workspace.team === team?.id && session) return render({
+  if (owner && (picker || (teamOnly && !team))) {
+    return <TeamPicker owner={owner} focusInvites={picker === 'invitations'} openTeam={openWorkspace}
+      openPrivate={privateAllowed ? () => openWorkspace(null) : undefined}
+      accessPending={resolvedAccess?.missing === true} onSignOut={signOut} />
+  }
+  if (owner && workspace?.owner === owner && workspace.team === team?.id && (team || privateAllowed) && session) return render({
     owner,
     email:session.user.email ?? 'Signed in',
     initial:workspace.snapshot,
@@ -182,12 +214,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
         throw new Error('Could not update your password. Try again or check your Supabase Auth settings.')
       }
     },
-    async signOut() {
-      const {error} = await cloud!.auth.signOut({scope:'local'})
-      if (error) throw error
-      setWorkspace(null)
-      setLoadError('')
-    },
+    signOut,
   })
 
   return <main className="account-gate"><section className="panel dev-card assistant-panel">

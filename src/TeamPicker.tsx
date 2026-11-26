@@ -9,14 +9,17 @@ function creationError(error: {code?: string; message?: string}) {
   if (['PGRST202', '42883', '42P01'].includes(error.code ?? '')) {
     return 'Team creation is unavailable. Apply the team-workspaces migration in Supabase and try again.'
   }
+  if (error.code === '42501' && error.message === 'Workspace administrator required') {
+    return 'Only workspace administrators can create teams.'
+  }
   if (error.code === '42501' || error.code === 'PGRST301') {
     return 'Supabase denied team creation. Sign out, sign back in, and try again.'
   }
   return 'Could not create the team. Try again or check the Supabase logs for this request.'
 }
 
-export function TeamPicker({owner, openPrivate, openTeam, focusInvites}: {
-  owner: string; focusInvites: boolean; openPrivate: () => void; openTeam: (team: Team) => void
+export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPending, onSignOut}: {
+  owner: string; focusInvites: boolean; openPrivate?: () => void; openTeam: (team: Team) => void; accessPending: boolean; onSignOut: () => Promise<void>
 }) {
   const [teams, setTeams] = useState<Team[]>([])
   const [inviteError, setInviteError] = useState(false)
@@ -135,13 +138,17 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites}: {
   }
 
   return <main className="team-picker">
-    <div className="page-heading"><div><h1>Workspaces</h1><p>Choose a private or shared workspace.</p></div>
-      <button className="secondary" onClick={openPrivate}>Open private workspace</button></div>
+    <div className="page-heading"><div><h1>Workspaces</h1><p>{openPrivate ? 'Choose a private or shared workspace.' : 'Open a team or accept an invitation.'}</p></div>
+      <div className="creative-actions">
+        {openPrivate && <button className="secondary" onClick={openPrivate}>Open private workspace</button>}
+        <button className="text-button" disabled={busy} onClick={() => void run(onSignOut,'Could not sign out. Try again.')}>Sign out</button>
+      </div></div>
+    {accessPending && <p className="team-message">The workspace access migration is pending. Team workspaces remain available.</p>}
     {message && <p role="status" className="team-message">{message}</p>}
     <div className="assistant-grid">
       <section className="panel dev-card assistant-panel"><h2>Teams</h2>
         {busy && <p role="status" className="dev-muted">Working…</p>}
-        {!busy && !teams.length && <p className="dev-muted">No team workspaces yet.</p>}
+        {!busy && !teams.length && <p className="dev-muted">{openPrivate ? 'No team workspaces yet.' : 'No teams have been assigned to this account yet.'}</p>}
         {teams.map(team => <div className="team-row" key={team.id}>
           <button className="text-button" disabled={busy} onClick={() => openTeam(team)}>{team.name}</button>
           <span className="status">{team.role}</span>
@@ -149,9 +156,9 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites}: {
         </div>)}
         <button className="text-button" disabled={busy} onClick={() => void run(async () => {await refresh()},'Could not refresh workspaces.')}>Refresh workspaces</button>
       </section>
-      <section className="panel dev-card assistant-panel"><h2>Create team</h2>
+      {openPrivate && <section className="panel dev-card assistant-panel"><h2>Create team</h2>
         <form onSubmit={create}><label>Team name<input name="name" maxLength={100} required /></label><button className="primary" disabled={busy}>Create team</button></form>
-      </section>
+      </section>}
       <section className="panel dev-card assistant-panel"><h2 ref={invitationsHeading} tabIndex={-1}>Invitations</h2>
         {inviteError ? <p className="dev-muted">Invitations could not be loaded. Refresh workspaces to retry.</p> : !invites.length && <p className="dev-muted">No pending invitations for your verified email.</p>}
         {invites.map(item => <div className="team-row" key={item.id}>
