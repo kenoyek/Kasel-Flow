@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "Kasel OS",
+  "short_name": "Kasel",
+  "description": "Kasel Digital Solutions agency workspace",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6fa",
+  "theme_color": "#121b30",
+  "icons": [
+    {"src": "./icons/kasel-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "./icons/kasel-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

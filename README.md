@@ -28,6 +28,18 @@ Optional model drafting uses OpenRouter from the local Vite development server. 
 
 Production model access, scheduled background jobs, and Resend email delivery require an authenticated backend.
 
+## Install the web app and export data
+
+Build with `npm run build`, serve `dist/` over HTTPS, and open **Settings**. After the first successful load and cache setup, the app can start offline and continue using the records saved in that browser. Use your browser’s install option or Add to Home Screen. When an update is ready, apply it from Settings to reload onto the new version. Local development uses Vite's live reload.
+
+**Export workspace JSON** downloads versioned data from the current browser. The file can contain contacts and financial records. It includes stored asset links, and linked files are downloaded separately through their providers.
+
+## Prepare native projects
+
+The Capacitor configuration uses `dist/` and the provisional application ID `com.kaseldigital.workspace`. Confirm the identifier before store registration. With the Android SDK and Android Studio installed, run `npm run build`, `npx cap add android` once, then `npx cap sync android` after web builds. On macOS with Xcode, run `npx cap add ios --packagemanager SPM` once, then `npx cap sync ios` after web builds. Open the generated project with `npx cap open android` or `npx cap open ios` to build and sign it.
+
+Native signing, device testing, subscriptions, and self-service tenant onboarding are pending. The web app remains a browser-local demo.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

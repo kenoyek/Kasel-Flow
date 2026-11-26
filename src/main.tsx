@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, X } from 'lucide-react'
 import { colors, departments, seed, statuses, type Project, type Status, type Task, type Workspace } from './data'
+import { WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { Assistant } from './Assistant'
 import { defaultAutomation, reportWorkspace } from './assistant-data'
 import { Business } from './Business'
@@ -18,6 +19,7 @@ const links = [
   { label: 'Tasks', icon: ListTodo },
   { label: 'Calendar', icon: CalendarDays },
   { label: 'Assistant', icon: Sparkles },
+  { label: 'Settings', icon: Settings2 },
 ]
 const departmentIcons = [Code2, Megaphone, Palette, Settings2]
 
@@ -39,6 +41,7 @@ function formatDate(date: string) {
 }
 
 function App() {
+  const installation = useAppInstallation()
   const [data, setData] = useState(loadWorkspace)
   const [page, setPage] = useState('Overview')
   const [projectFilter, setProjectFilter] = useState('')
@@ -179,8 +182,9 @@ function App() {
         {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{!reviews.length && !reviewExtras && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.'}[page]}</p></div>
-        {page !== 'Assistant' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.'}[page]}</p></div>
+        {page !== 'Assistant' && page !== 'Settings' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        {installation.waiting && page !== 'Settings' && <button className="text-button" onClick={() => navigate('Settings')}>An app update is available</button>}
         {storageError && <p role="alert">Browser storage is unavailable. Changes may be lost when you close this page.</p>}
         {query ? <section className="section"><h2>Search results</h2><div className="project-grid">{filteredProjects.map(renderProject)}</div><div className="panel task-list">{matchingTasks.length ? matchingTasks.map(renderTask) : <p className="empty">No matching tasks.</p>}</div></section> : <>
           {page === 'Overview' && <>
@@ -202,6 +206,7 @@ function App() {
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
+          {page === 'Settings' && <WorkspaceSettings data={data} installation={installation} />}
           {page === 'Assistant' && <Assistant data={data} today={today} update={setData} />}
           {page === 'Operations' && <Business data={data.business} projects={data.projects}
             update={patch => setData(previous => ({...previous, business: patch(previous.business)}))} />}
