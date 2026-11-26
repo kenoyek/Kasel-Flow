@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { AuthError, Session } from '@supabase/supabase-js'
 import { cloud, readCloud, writeCloud, type CloudWorkspace } from './cloud-workspace'
@@ -45,6 +46,8 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [picker, setPicker] = useState(false)
   const [team, setTeam] = useState<Team | null>(null)
   const [demo, setDemo] = useState(false)
+  const [signInOpen, setSignInOpen] = useState(false)
+  const inDemo = demo && !(signInOpen && session?.user.id)
   const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -60,6 +63,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       if (event === 'SIGNED_OUT') {
         setTeam(null)
         setPicker(false)
+        setSignInOpen(false)
         setWorkspace(null)
         setLoadError('')
       }
@@ -69,7 +73,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   }, [])
 
   useEffect(() => {
-    if (!owner || demo || picker) return
+    if (!owner || inDemo || picker) return
     const controller = new AbortController()
     const request = team ? readTeam(team.id, controller.signal) : readCloud(owner, controller.signal)
     request.then(snapshot => {
@@ -78,7 +82,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       if (!controller.signal.aborted) setLoadError('The selected workspace could not be loaded.')
     })
     return () => controller.abort()
-  }, [owner, demo, picker, team, attempt])
+  }, [owner, inDemo, picker, team, attempt])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -94,6 +98,9 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
           setNotice(error.code === 'invalid_credentials'
             ? 'Email or password is incorrect. If your account has never had a password, use a sign-in link first.'
             : signInError(error, method))
+        } else {
+          setDemo(false)
+          setSignInOpen(false)
         }
         return
       }
@@ -113,8 +120,43 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     setPicker(false)
   }
 
+  function signInForm(close?: () => void) {
+    return <form onSubmit={signIn}>
+      <div className="dialog-heading">
+        <h2 id="sign-in-heading">Sign in to your private workspace</h2>
+        {close && <button className="icon-button" type="button" aria-label="Close sign-in" onClick={close}><X size={20} /></button>}
+      </div>
+      <label>Email<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
+      {method === 'password' && <label>Password<input required name="password" type="password" autoComplete="current-password" /></label>}
+      <div className="creative-actions">
+        <button className="primary" disabled={sending}>{method === 'link' ? sending ? 'Sending…' : 'Send sign-in link' : sending ? 'Signing in…' : 'Sign in with password'}</button>
+        <button type="button" className="text-button" disabled={sending} onClick={() => {
+          setMethod(method === 'link' ? 'password' : 'link')
+          setNotice('')
+        }}>{method === 'link' ? 'Use a password' : 'Use a sign-in link'}</button>
+      </div>
+      {notice && <p role="status" className="dev-muted">{notice}</p>}
+    </form>
+  }
+
   if (!cloud) return render()
-  if (demo) return render(undefined, () => {setDemo(false);setLoadError('');setWorkspace(null)})
+  if (inDemo) return <>
+    {render(undefined, () => {
+      if (owner) {
+        setDemo(false)
+        setLoadError('')
+        return
+      }
+      setNotice('')
+      setSignInOpen(true)
+    })}
+    {signInOpen && <dialog
+      ref={node => {if (node && !node.open) node.showModal()}}
+      onCancel={() => setSignInOpen(false)}
+      aria-labelledby="sign-in-heading">
+      {signInForm(() => setSignInOpen(false))}
+    </dialog>}
+  </>
   if (owner && picker) return <TeamPicker owner={owner} openPrivate={() => openWorkspace(null)} openTeam={openWorkspace} />
   if (owner && workspace?.owner === owner && workspace.team === team?.id && session) return render({
     owner,
@@ -145,20 +187,8 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       <p className="dev-muted" role="status">{loadError || 'Loading workspace…'}</p>
       {owner && <button className="text-button gate-demo" onClick={() => setPicker(true)}>Choose workspace</button>}
       {loadError && <button className="primary" onClick={() => {setLoadError('');setAttempt(current => current + 1)}}>Retry load</button>}
-    </> : <form onSubmit={signIn}>
-      <h2>Sign in to your private workspace</h2>
-      <label>Email<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
-      {method === 'password' && <label>Password<input required name="password" type="password" autoComplete="current-password" /></label>}
-      <div className="creative-actions">
-        <button className="primary" disabled={sending}>{method === 'link' ? sending ? 'Sending…' : 'Send sign-in link' : sending ? 'Signing in…' : 'Sign in with password'}</button>
-        <button type="button" className="text-button" disabled={sending} onClick={() => {
-          setMethod(method === 'link' ? 'password' : 'link')
-          setNotice('')
-        }}>{method === 'link' ? 'Use a password' : 'Use a sign-in link'}</button>
-      </div>
-      {notice && <p role="status" className="dev-muted">{notice}</p>}
-    </form>}
-    <button className="text-button gate-demo" onClick={() => setDemo(true)}>Open browser demo</button>
+    </> : signInForm()}
+    <button className="text-button gate-demo" onClick={() => {setSignInOpen(false);setDemo(true)}}>Open browser demo</button>
     {owner && <button className="text-button gate-demo" onClick={() => void cloud?.auth.signOut({scope:'local'})}>Sign out</button>}
   </section></main>
 }
