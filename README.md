@@ -74,6 +74,12 @@ Open **Board** to group tasks by status and filter by project, priority, or team
 
 Open a task from the list or board to add a brief and a checklist. Check items off as work progresses. Board cards show checklist progress. Viewers can open task details, including the description and checklist. Team edits follow the existing **Save to cloud** workflow.
 
+## Production domain
+
+The canonical site is `https://os.kasel.digital/`. Add `os.kasel.digital` to the Kasel OS Vercel project's **Domains** settings and configure the exact DNS record Vercel shows. Wait for Vercel to verify the domain and issue its HTTPS certificate.
+
+In Supabase **Authentication → URL Configuration**, set **Site URL** to `https://os.kasel.digital` and allow `https://os.kasel.digital/` as a redirect URL. Keep `https://kaselos.vercel.app/` allowed while it still serves the app. Start and finish email sign-in on the same origin because the sign-in request is tied to its browser. Existing users sign in again on the new hostname. Save pending cloud edits on the old hostname before switching. Browser demo records and installed web apps are also specific to their origin.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

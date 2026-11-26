@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 
-const publicFiles = ['manifest.webmanifest', 'icons/kasel-192.png', 'icons/kasel-512.png']
+const publicFiles = ['favicon.ico', 'manifest.webmanifest', 'icons/kasel-192.png', 'icons/kasel-512.png']
 
 export function kaselPwa() {
   return {
