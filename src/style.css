@@ -181,3 +181,7 @@ dialog textarea { min-height: 70px; resize: vertical }
 .creative-metrics dd { margin: 4px 0 0; font-size: 22px; font-weight: 700 }
 .creative-metric-label { text-transform: capitalize }
 dialog { max-height: calc(100dvh - 30px); overflow: auto }
+.client-preview > h3, .client-preview-section h3 { margin: 14px 0 8px }
+.client-preview-section .dev-card h3 { margin: 0 }
+.business-grants { border: 1px solid var(--line); border-radius: 7px; margin-top: 12px; max-height: 145px; overflow: auto; font-size: 12px }
+.business-grants label, dialog label.business-checkbox { display: flex; align-items: center; gap: 7px }

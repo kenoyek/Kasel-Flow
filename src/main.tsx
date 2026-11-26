@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sun, X } from 'lucide-react'
 import { colors, departments, seed, statuses, type Project, type Status, type Task, type Workspace } from './data'
+import { Business } from './Business'
+import { emptyBusiness } from './business-data'
 import { Creative } from './Creative'
 import { Development } from './Development'
 import { githubRepository } from './development-data'
@@ -21,7 +23,7 @@ function loadWorkspace(): Workspace {
     const saved = localStorage.getItem(storageKey)
     if (saved) {
       const workspace = JSON.parse(saved) as Workspace
-      return {...workspace, development: workspace.development ?? [], creative: workspace.creative ?? []}
+      return {...workspace, development: workspace.development ?? [], creative: workspace.creative ?? [], business: workspace.business ?? emptyBusiness}
     }
   } catch {
     // Seed the demo if storage is unavailable.
@@ -196,6 +198,8 @@ function App() {
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
+          {page === 'Operations' && <Business data={data.business} projects={data.projects}
+            update={patch => setData(previous => ({...previous, business: patch(previous.business)}))} />}
           {(page === 'Social Media' || page === 'Content') && <Creative key={page} content={page === 'Content'}
             records={data.creative} onSave={record => setData(previous => ({
               ...previous,
