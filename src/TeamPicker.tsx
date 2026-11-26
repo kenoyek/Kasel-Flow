@@ -22,6 +22,7 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
   owner: string; focusInvites: boolean; openPrivate?: () => void; openTeam: (team: Team) => void; accessPending: boolean; onSignOut: () => Promise<void>
 }) {
   const [teams, setTeams] = useState<Team[]>([])
+  const [shareLink, setShareLink] = useState('')
   const [inviteError, setInviteError] = useState(false)
   const [invites, setInvites] = useState<TeamInvite[]>([])
   const [deletion, setDeletion] = useState<{ team: Team; revision: number; projects: number; tasks: number } | null>(null)
@@ -124,6 +125,17 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
     }
   }
 
+  async function copyInvitation(invitation: SentInvite) {
+    const url = new URL(import.meta.env.BASE_URL,window.location.origin)
+    url.searchParams.set('invite',invitation.id)
+    try {
+      await navigator.clipboard.writeText(url.href)
+      if (alive.current) setMessage('Invitation link copied. Share it with ' + invitation.email + '.')
+    } catch {
+      if (alive.current) setShareLink(url.href)
+    }
+  }
+
   function invite(event: FormEvent<HTMLFormElement>, team: Team) {
     event.preventDefault()
     const form = event.currentTarget
@@ -133,7 +145,7 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
       if (error) throw error
       await loadRoster(team)
       form.reset()
-      setMessage('Invitation available in the recipient’s workspace switcher for seven days.')
+      setMessage('Invitation created. Copy its link to share with the recipient. It expires after seven days.')
     }, 'Could not invite this member. Confirm the address and role.')
   }
 
@@ -194,6 +206,7 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
           </>}
         </div>)}
         {sent.map(item => <div className="team-row" key={item.id}><span>{item.email} · {item.member_role} invitation · expires {item.expires_at.slice(0,10)}</span>
+          {Date.parse(item.expires_at) > Date.now() && <button className="text-button" disabled={busy} onClick={() => void copyInvitation(item)}>Copy invite link</button>}
           <button className="text-button" disabled={busy} onClick={() => void run(async () => {
             const {error} = await cloud!.rpc('cancel_team_invite',{invitation:item.id})
             if (error) throw error
@@ -209,6 +222,11 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
         </div>
       </section>}
     </div>
+    {shareLink && <dialog ref={node => {if (node && !node.open) node.showModal()}} onCancel={() => setShareLink('')} aria-labelledby="team-share-title">
+      <div className="dialog-heading"><h2 id="team-share-title">Share team invitation</h2></div>
+      <label>Invitation link<input readOnly value={shareLink} onFocus={event => event.currentTarget.select()} /></label>
+      <div className="dialog-actions"><button className="secondary" onClick={() => setShareLink('')}>Close</button></div>
+    </dialog>}
     {deletion && <dialog ref={element => {if (element && !element.open) element.showModal()}}
       onCancel={event => {event.preventDefault();if (!busy) setDeletion(null)}} aria-labelledby="team-delete-title">
       <div className="dialog-heading"><h2 id="team-delete-title">Delete {deletion.team.name}?</h2></div>

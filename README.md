@@ -82,9 +82,15 @@ In Supabase **Authentication → URL Configuration**, set **Site URL** to `https
 
 ### New staff access
 
-Apply `202611260008_require_private_workspace_access.sql` to make new users team-only. Provision and confirm their Supabase Auth account, then invite their email from the appropriate team. After sign-in, they can accept invitations and open teams they belong to. They cannot read or create a private workspace or create teams. Existing team owners and accounts with saved private workspaces retain their administrator access.
+Apply `202611260008_require_private_workspace_access.sql` to make new users team-only. Use invite-based account setup below, or provision and confirm their Supabase Auth account and then invite their email from the appropriate team. After sign-in, they can accept invitations and open teams they belong to. They cannot read or create a private workspace or create teams. Existing team owners and accounts with saved private workspaces retain their administrator access.
 
 To grant administrator access to a future administrator, a database administrator can insert that user's Supabase Auth ID into `public.workspace_admin_access (user_id)`. The user can then sign out and back in to pick up the grant.
+
+### Invite-based account setup
+
+Apply `202611260009_invite_signup.sql` and, in Supabase **Authentication → Hooks**, enable the **Before User Created** PostgreSQL hook `public.require_team_invitation_on_signup`. Enable email signups and keep **Confirm email** enabled. Verify the production URL is allowed as a redirect. Configure custom SMTP in Supabase for production confirmation email delivery.
+
+A team owner creates an invitation and chooses **Copy invite link** to share it with the intended recipient. The recipient chooses a password, confirms their email, and accepts the team invitation. Existing users can sign in from the invite link. The hook requires a live invitation for the exact email before a new user can sign up. It also applies to account creation in ways that invoke the same Supabase hook. The app copies links for owners to share. Supabase sends the signup confirmation email.
 
 ## Run locally
 

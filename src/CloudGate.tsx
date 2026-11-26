@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { AuthError, Session } from '@supabase/supabase-js'
 import { cloud, readCloud, writeCloud, type CloudWorkspace } from './cloud-workspace'
+import { InviteSignup } from './InviteSignup'
 import { TeamPicker } from './TeamPicker'
 import { readTeam, saveTeam, type Team } from './team-workspace'
 import type { Workspace } from './data'
@@ -47,6 +48,11 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [picker, setPicker] = useState<false | 'teams' | 'invitations'>(false)
   const [team, setTeam] = useState<Team | null>(null)
   const [demo, setDemo] = useState(false)
+  const [invite, setInvite] = useState(() => {
+    const token = new URLSearchParams(location.search).get('invite') ?? ''
+    return /^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(token) ? token : ''
+  })
+  const [showSignup, setShowSignup] = useState(Boolean(invite))
   const [signInOpen, setSignInOpen] = useState(false)
   const inDemo = session === null || (demo && !(signInOpen && session?.user.id))
   const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
@@ -95,7 +101,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   }, [owner, inDemo, attempt])
 
   useEffect(() => {
-    if (!owner || inDemo || picker || (!team && !privateAllowed)) return
+    if (!owner || inDemo || picker || (!team && (!privateAllowed || invite))) return
     const controller = new AbortController()
     const request = team ? readTeam(team.id, controller.signal) : readCloud(owner, controller.signal)
     request.then(snapshot => {
@@ -104,7 +110,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       if (!controller.signal.aborted) setLoadError('The selected workspace could not be loaded.')
     })
     return () => controller.abort()
-  }, [owner, inDemo, picker, team, attempt, privateAllowed])
+  }, [owner, inDemo, picker, team, attempt, privateAllowed, invite])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -142,7 +148,16 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     setLoadError('')
   }
 
+  function clearInvite() {
+    setInvite('')
+    setShowSignup(false)
+    const url = new URL(location.href)
+    url.searchParams.delete('invite')
+    history.replaceState(history.state, '', url)
+  }
+
   function openWorkspace(next: Team | null) {
+    if (invite) clearInvite()
     setWorkspace(null)
     setLoadError('')
     setTeam(next)
@@ -187,15 +202,19 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       setShowPassword(false)
       setSignInOpen(true)
     })}
-    {signInOpen && <dialog
+    {showSignup && invite && <InviteSignup invite={invite} close={clearInvite} useSignIn={() => {
+      setShowSignup(false)
+      setSignInOpen(true)
+    }} />}
+    {signInOpen && !showSignup && <dialog
       ref={node => {if (node && !node.open) node.showModal()}}
       onCancel={() => setSignInOpen(false)}
       aria-labelledby="sign-in-heading">
       {signInForm(() => setSignInOpen(false))}
     </dialog>}
   </>
-  if (owner && (picker || (teamOnly && !team))) {
-    return <TeamPicker owner={owner} focusInvites={picker === 'invitations'} openTeam={openWorkspace}
+  if (owner && (picker || ((teamOnly || invite) && !team))) {
+    return <TeamPicker owner={owner} focusInvites={picker === 'invitations' || Boolean(invite)} openTeam={openWorkspace}
       openPrivate={privateAllowed ? () => openWorkspace(null) : undefined}
       accessPending={resolvedAccess?.missing === true} onSignOut={signOut} />
   }
