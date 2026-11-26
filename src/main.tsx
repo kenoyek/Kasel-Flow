@@ -222,6 +222,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
           <label className="search"><Search size={17} /><input type="search" aria-label="Search workspace" placeholder="Search workspace…" value={search} onChange={event => setSearch(event.target.value)} /></label>
           <button className="icon-button" aria-label={dark ? 'Use light mode' : 'Use dark mode'} onClick={() => setDark(!dark)}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
           <button className="icon-button bell" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={20} />{(reviews.length > 0 || reviewExtras > 0) && <i />}</button>
+          {!account && <button className="secondary top-sign-in" onClick={openAccount ?? (() => navigate('Settings'))}>Sign in</button>}
         </div>
         {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{!reviews.length && !reviewExtras && <p>You’re all caught up.</p>}</section>}
       </header>
@@ -234,7 +235,6 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
           <button className="text-button" disabled={cloudBusy} onClick={switchWorkspace}>Switch workspace</button>
           <button className="text-button" disabled={cloudBusy} onClick={() => void signOut()}>Sign out</button>
         </section>}
-        {openAccount && <button className="text-button gate-demo" onClick={openAccount}>Open private workspace</button>}
         {installation.waiting && page !== 'Settings' && <button className="text-button" onClick={() => navigate('Settings')}>An app update is available</button>}
         {storageError && <p role="alert">Browser storage is unavailable. Changes may be lost when you close this page.</p>}
         {query ? <section className="section"><h2>Search results</h2><div className="project-grid">{filteredProjects.map(renderProject)}</div><div className="panel task-list">{matchingTasks.length ? matchingTasks.map(renderTask) : <p className="empty">No matching tasks.</p>}</div></section> : <>
@@ -257,7 +257,12 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
-          {page === 'Settings' && <WorkspaceSettings data={data} installation={installation} privateWorkspace={Boolean(account)} />}
+          {page === 'Settings' && <>
+            {!account && !openAccount && <section className="panel cloud-bar" aria-label="Sign-in availability">
+              <span>Sign-in is unavailable in this demo build. Ask your workspace administrator to enable cloud sign-in.</span>
+            </section>}
+            <WorkspaceSettings data={data} installation={installation} privateWorkspace={Boolean(account)} />
+          </>}
           {page === 'Assistant' && <Assistant data={data} today={today} update={setData} allowModel={!account} />}
           {!team && page === 'Operations' && <Business data={data.business} projects={data.projects}
             update={patch => setData(previous => ({...previous, business: patch(previous.business)}))} />}

@@ -206,3 +206,8 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .team-message { margin-bottom: 12px; color: var(--muted); font-size: 13px }
 .task-row:disabled { cursor: default }
 .task-row:disabled:hover { background: none }
+.top-sign-in { flex-shrink: 0 }
+@media (max-width: 390px) {
+  .topbar .search input { min-width: 56px }
+  .topbar .search { padding-inline: 6px }
+}

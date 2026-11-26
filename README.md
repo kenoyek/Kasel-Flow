@@ -42,7 +42,7 @@ Native signing, device testing, subscriptions, and self-service tenant onboardin
 
 ## Private workspace pilot
 
-Apply the migration in `supabase/migrations/` to your Supabase project. In Supabase Auth, provision pilot users and allow the deployed app's root URL as a sign-in redirect. Keep email link sign-in enabled. Set the public build variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, then rebuild. Use a Supabase **publishable** key. With both variables omitted the app opens in demo mode.
+Apply the migration in `supabase/migrations/` to your Supabase project. In Supabase Auth, provision pilot users and allow the deployed app's root URL as a sign-in redirect. Keep email link sign-in enabled. Set the public build variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, then rebuild. Use a Supabase **publishable** key. Set these variables in the hosting provider as well as in any Codex environment used for development. Redeploy after changing them because Vite reads them at build time. With both variables omitted, **Sign in** opens Settings and explains that cloud sign-in is unavailable in that build.
 
 Pilot users open their email link in the same browser used to request it. Each user starts with an empty private workspace and must use **Save to cloud** to persist changes. A stale browser tab cannot overwrite a newer save through the app. Export unsaved work before reloading after a conflict. The browser demo has separate records. OpenRouter drafting stays in the demo.
 
