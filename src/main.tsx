@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, History, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
-import { colors, departments, seed, statuses, type Project, type Status, type Task, type Workspace } from './data'
+import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, Columns3, History, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
+import { colors, departments, seed, statuses, taskPriorities, type Priority, type Project, type Status, type Task, type Workspace } from './data'
 import { PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { CloudGate, type CloudControls } from './CloudGate'
 import { Assistant } from './Assistant'
@@ -10,6 +10,7 @@ import { Business } from './Business'
 import { emptyBusiness } from './business-data'
 import { Creative } from './Creative'
 import { Development } from './Development'
+import { TaskBoard } from './TaskBoard'
 import { TeamActivity } from './TeamActivity'
 import { useTeamUpdates } from './useTeamUpdates'
 import { TeamWorkload, unassigned } from './TeamWorkload'
@@ -22,6 +23,7 @@ const links = [
   { label: 'Overview', icon: LayoutDashboard },
   { label: 'Projects', icon: FolderKanban },
   { label: 'Tasks', icon: ListTodo },
+  { label: 'Board', icon: Columns3 },
   { label: 'Calendar', icon: CalendarDays },
   { label: 'Workload', icon: Users },
   { label: 'Activity', icon: History },
@@ -60,6 +62,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [page, setPage] = useState('Overview')
   const [projectFilter, setProjectFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [openOnly, setOpenOnly] = useState(false)
   const [roster, setRoster] = useState<TaskAssignee[] | null>(null)
@@ -157,6 +160,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     catch { /* Theme still applies for this session. */ }
   }, [dark])
 
+  const taskPage = ['Tasks','Calendar','Board'].includes(page)
   const department = departments.includes(page) ? page : ''
   const projects = department ? data.projects.filter(project => project.department === department) : data.projects
   const tasks = data.tasks.filter(task => projects.some(project => project.id === task.project))
@@ -172,13 +176,14 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     (task.title + ' ' + (data.projects.find(project => project.id === task.project)?.name ?? '')).toLowerCase().includes(query))
   const filteredTasks = (overdueOnly ? overdue : tasks).filter(task =>
     (!projectFilter || task.project === projectFilter) && (!statusFilter || task.status === statusFilter) &&
-    (!assigneeFilter || (task.assignee ?? unassigned) === assigneeFilter) && (!openOnly || task.status !== 'Done'))
+    (!priorityFilter || (task.priority ?? 'Normal') === priorityFilter) && (!assigneeFilter || (task.assignee ?? unassigned) === assigneeFilter) && (!openOnly || task.status !== 'Done'))
 
   function navigate(next: string, project = '', status = '', onlyOverdue = false) {
     setPage(next)
     setProjectFilter(project)
     setStatusFilter(status)
     setAssigneeFilter('')
+    setPriorityFilter('')
     setOpenOnly(false)
     setOverdueOnly(onlyOverdue)
     setSearch('')
@@ -217,9 +222,9 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       navigate(department && department === item.department ? department : 'Projects')
     } else {
       const sprint = data.development.find(record => record.kind === 'sprint' && record.id === value('sprint') && record.project === value('project'))
-      const item: Task = {id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,due:value('due'),sprint:sprint?.id,assignee:roster ? value('assignee') || undefined : editingTask?.assignee}
+      const item: Task = {id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,priority:value('priority') as Priority,due:value('due'),sprint:sprint?.id,assignee:roster ? value('assignee') || undefined : editingTask?.assignee}
       setData(previous => ({...previous,tasks:editingTask ? previous.tasks.map(task => task.id === item.id ? item : task) : [...previous.tasks,item]}))
-      if (!editingTask && page !== 'Development') navigate('Tasks', item.project)
+      if (!editingTask && page !== 'Development' && page !== 'Board') navigate('Tasks', item.project)
     }
     setModal(null)
   }
@@ -229,12 +234,16 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     setTaskProject(projectId)
   }
 
-  function renderTask(task: Task) {
-    const project = data.projects.find(item => item.id === task.project)
+  function taskContext(task: Task) {
+    const project = data.projects.find(item => item.id === task.project)?.name
     const assignee = roster?.find(member => member.user_id === task.assignee)?.label
+    return [project,assignee].filter(Boolean).join(' · ')
+  }
+
+  function renderTask(task: Task) {
     return <button className="task-row" key={task.id} disabled={readOnly} onClick={() => openTask(task)}>
       {task.status === 'Done' ? <CheckCircle2 className="task-check done" /> : <Circle className="task-check" />}
-      <span className="task-name"><strong>{task.title}</strong><small>{project?.name}{assignee && ' · ' + assignee}</small></span>
+      <span className="task-name"><strong>{task.title}</strong><small>{taskContext(task)}{task.priority && task.priority !== 'Normal' && ' · ' + task.priority}</small></span>
       <span className={'status ' + task.status.toLowerCase().replace(' ', '-')}>{task.status}</span>
       <span className="due">{formatDate(task.due)}</span>
     </button>
@@ -275,8 +284,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{!reviews.length && !reviewExtras && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
-        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && <button className="primary" onClick={() => page === 'Tasks' || page === 'Calendar' ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{(page === 'Tasks' || page === 'Calendar') && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
+        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
           {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy || Boolean(newer)} onClick={() => void saveCloud()}>Save to cloud</button>}
@@ -348,14 +357,21 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
             })}
             onEditProject={openProject} onNewTask={startDevelopmentTask} onEditTask={openTask} />}
           {(page === 'Overview' || page === 'Projects' || (department && (team || page !== 'Development'))) && <section className="section"><div className="section-heading"><h2>{page === 'Overview' ? 'Projects' : department ? 'Department projects' : 'All projects'}</h2>{page === 'Overview' && <button className="text-button" onClick={() => navigate('Projects')}>View all projects <ArrowRight size={15} /></button>}</div><div className="project-grid">{(page === 'Overview' ? projects.slice(0,3) : projects).map(renderProject)}</div>{!projects.length && <p className="panel empty">No projects yet.</p>}</section>}
-          {(page === 'Tasks' || page === 'Calendar' || (department && (team || page !== 'Development'))) && <section className="section">
-            <div className="filters"><label>Project <select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">All projects</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label>Status <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status}>{status}</option>)}</select></label>{department && !readOnly && <button className="text-button" onClick={() => projects.length ? openTask() : openProject()}><Plus size={16} />{projects.length ? 'New task' : 'New project'}</button>}{roster && <label>Assignee <select value={assigneeFilter} onChange={event => setAssigneeFilter(event.target.value)}>
+          {(taskPage || (department && (team || page !== 'Development'))) && <section className="section">
+            <div className="filters"><label>Project <select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">All projects</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>{page !== 'Board' && <label>Status <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status}>{status}</option>)}</select></label>}
+            <label>Priority <select value={priorityFilter} onChange={event => setPriorityFilter(event.target.value)}>
+              <option value="">All priorities</option>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}
+            </select></label>{department && !readOnly && <button className="text-button" onClick={() => projects.length ? openTask() : openProject()}><Plus size={16} />{projects.length ? 'New task' : 'New project'}</button>}{roster && <label>Assignee <select value={assigneeFilter} onChange={event => setAssigneeFilter(event.target.value)}>
               <option value="">All assignees</option><option value={unassigned}>Unassigned</option>
               {roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
             </select></label>}
             {openOnly && <button className="text-button" onClick={() => setOpenOnly(false)}>Show completed tasks</button>}
             <span>{filteredTasks.length} tasks</span>{overdueOnly && <button className="text-button" onClick={() => setOverdueOnly(false)}>Clear overdue filter <X size={14} /></button>}</div>
-            <div className="panel task-list">{(page === 'Calendar' ? [...filteredTasks].sort((first,second) => (first.due || '9999').localeCompare(second.due || '9999')) : filteredTasks).map(renderTask)}{!filteredTasks.length && <p className="empty">No tasks match these filters.</p>}</div>
+            {page === 'Board' ? <TaskBoard tasks={filteredTasks} readOnly={readOnly} onEdit={openTask} details={task => <>
+              <p className="dev-muted">{taskContext(task)}</p><p className="dev-muted">{formatDate(task.due)}</p>
+            </>} onMove={(id,status) => {
+              if (!readOnly) setData(previous => ({...previous,tasks:previous.tasks.map(task => task.id === id ? {...task,status} : task)}))
+            }} /> : <div className="panel task-list">{(page === 'Calendar' ? [...filteredTasks].sort((first,second) => (first.due || '9999').localeCompare(second.due || '9999')) : filteredTasks).map(renderTask)}{!filteredTasks.length && <p className="empty">No tasks match these filters.</p>}</div>}
           </section>}
         </>}
       </main>
@@ -364,7 +380,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       <form onSubmit={saveItem}>
         <div className="dialog-heading"><h2 id="editor-title">{(modal === 'task' ? editingTask : editingProject) ? 'Edit' : 'New'} {modal}</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
         <label>{modal === 'project' ? 'Project name' : 'Task title'}<input name="name" required maxLength={100} defaultValue={modal === 'project' ? editingProject?.name : editingTask?.title} autoFocus /></label>
-        {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => setTaskProject(event.target.value)}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
+        {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => setTaskProject(event.target.value)}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Priority<select name="priority" defaultValue={editingTask?.priority ?? 'Normal'}>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
           <option value="">Unassigned</option>{roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
         </select></label>}{!team && data.projects.some(project => project.id === taskProject && project.department === 'Development') && <label>Sprint<select name="sprint" key={taskProject} defaultValue={editingTask?.project === taskProject ? editingTask.sprint ?? '' : ''}><option value="">Backlog</option>{data.development.filter(record => record.kind === 'sprint' && record.project === taskProject).map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</select></label>}</>}
         <div className="dialog-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>Cancel</button><button className="primary" type="submit">Save {modal}</button></div>

@@ -66,6 +66,10 @@ Apply `202611260004_team_live_updates.sql` to enable Supabase Realtime for team 
 
 Apply `202611260005_team_activity.sql` to enable the **Activity** view. It records future team creation and shared project or task changes with their revision, time, and verified actor label. Team members can read their own team's history. The log starts at installation and stores change counts without copying record contents. Client-side users cannot edit or delete it.
 
+## Task board
+
+Open **Board** to group tasks by status and filter by project, priority, or team assignee. Move tasks by dragging a card on desktop or using its status dropdown. Tasks without a saved priority display as Normal. Changes follow the workspace's existing save behavior, and team viewers can browse the board with read-only access.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

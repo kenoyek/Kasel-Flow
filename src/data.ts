@@ -4,8 +4,10 @@ import type { CreativeRecord } from './creative-data'
 import type { DevelopmentRecord } from './development-data'
 
 export type Status = 'To do' | 'In progress' | 'In review' | 'Done'
+export const taskPriorities = ['Urgent', 'High', 'Normal', 'Low'] as const
+export type Priority = typeof taskPriorities[number]
 export type Project = { id: string; name: string; department: string; description: string; color: string; repository?: string }
-export type Task = { id: string; title: string; project: string; status: Status; due: string; sprint?: string; assignee?: string }
+export type Task = { id: string; title: string; project: string; status: Status; due: string; sprint?: string; assignee?: string; priority?: Priority }
 export type Workspace = { projects: Project[]; tasks: Task[]; development: DevelopmentRecord[]; creative: CreativeRecord[]; business: BusinessData; automation: Automation }
 export const departments = ['Development', 'Social Media', 'Content', 'Operations']
 export const statuses: Status[] = ['To do', 'In progress', 'In review', 'Done']
