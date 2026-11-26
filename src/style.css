@@ -242,3 +242,8 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .task-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; font-size: 13px }
 .sign-in-password > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 9px }
 .sign-in-password input { flex: 1 1 125px; min-width: 0 }
+.destructive { color: #b42337 }
+:root[data-theme=dark] .destructive { color: #ff9ba9 }
+.destructive-primary { background: #a91f33 }
+.destructive-primary:hover { background: #871328 }
+.destructive-primary:disabled { opacity: .55; cursor: default }

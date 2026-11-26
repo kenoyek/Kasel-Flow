@@ -50,7 +50,7 @@ This pilot stores one owner-only snapshot per user. Team workspaces use separate
 
 ## Team workspace pilot
 
-Apply the Supabase migrations in order. Sign in with a provisioned, verified account and use **Switch workspace** to create a team or accept an invitation. Team owners grant viewer or editor access, change roles, and remove members. Invitations are matched to the recipient’s verified email and expire after seven days. They appear in the recipient's workspace switcher. Kasel OS does not send an invitation email.
+Apply the Supabase migrations in order. Sign in with a provisioned, verified account and use **Switch workspace** to create a team or accept an invitation. Team owners grant viewer or editor access, change roles, and remove members. After applying `202611260006_delete_team_workspace.sql`, owners can delete a team from its management panel. The confirmation shows the workspace contents before it permanently removes shared records, memberships, invitations, and activity. Invitations are matched to the recipient’s verified email and expire after seven days. They appear in the recipient's workspace switcher. Kasel OS does not send an invitation email.
 
 A team workspace shares its projects and tasks with every member. Editors and owners save explicitly, and older revisions cannot overwrite newer saves. Viewers can browse and export the records they can see. Private client, finance, creative, development, and assistant records remain in the private workspace. Project-specific access and ownership transfer remain pending.
 

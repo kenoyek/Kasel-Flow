@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { cloud } from './cloud-workspace'
-import { listTeams, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
+import { listTeams, readTeam, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
 
 function creationError(error: {code?: string; message?: string}) {
   if (error.code === '42501' && error.message === 'Verified email required') {
@@ -21,6 +21,8 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
   const [teams, setTeams] = useState<Team[]>([])
   const [inviteError, setInviteError] = useState(false)
   const [invites, setInvites] = useState<TeamInvite[]>([])
+  const [deletion, setDeletion] = useState<{ team: Team; revision: number; projects: number; tasks: number } | null>(null)
+  const [deletionError, setDeletionError] = useState('')
   const [managed, setManaged] = useState<Team | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [sent, setSent] = useState<SentInvite[]>([])
@@ -78,6 +80,44 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
       form.reset()
       setMessage('Team created. Open it or choose Manage ' + name + ' to invite teammates.')
     }, 'Could not confirm team creation. Refresh workspaces before trying again.')
+  }
+
+  async function previewDeletion(team: Team) {
+    const snapshot = await readTeam(team.id, AbortSignal.timeout(12000))
+    if (!alive.current) return
+    setDeletionError('')
+    setDeletion({team, revision:snapshot.revision, projects:snapshot.data.projects.length, tasks:snapshot.data.tasks.length})
+  }
+
+  async function deleteTeam() {
+    if (busy || !deletion) return
+    setBusy(true)
+    setDeletionError('')
+    try {
+      const {data,error} = await cloud!.rpc('delete_team_workspace',{team:deletion.team.id,expected_revision:deletion.revision})
+      if (!alive.current) return
+      if (error) {
+        setDeletionError(error.code === 'PGRST202'
+          ? 'Install the team deletion migration in Supabase to enable this action.'
+          : error.code === '42501' ? 'Only the team owner can delete this workspace.' : 'Could not delete the team. Try again.')
+        return
+      }
+      if (data !== true) {
+        setDeletion(null)
+        setMessage('The team changed while this confirmation was open. Review its current contents before deleting.')
+        return
+      }
+      setTeams(previous => previous.filter(item => item.id !== deletion.team.id))
+      setManaged(null)
+      setMembers([])
+      setSent([])
+      setDeletion(null)
+      setMessage('Deleted team ' + deletion.team.name + '.')
+    } catch {
+      if (alive.current) setDeletionError('Could not confirm deletion. Close this dialog and refresh workspaces before trying again.')
+    } finally {
+      if (alive.current) setBusy(false)
+    }
   }
 
   function invite(event: FormEvent<HTMLFormElement>, team: Team) {
@@ -156,7 +196,21 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
           <label>Role<select name="role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label>
           <button className="primary" disabled={busy}>Create invitation</button>
         </form>
+        <div className="activity-footer">
+          <button className="secondary destructive" disabled={busy} onClick={() => void run(() => previewDeletion(managed),'Could not load the team details for deletion.')}>Delete team</button>
+        </div>
       </section>}
     </div>
+    {deletion && <dialog ref={element => {if (element && !element.open) element.showModal()}}
+      onCancel={event => {event.preventDefault();if (!busy) setDeletion(null)}} aria-labelledby="team-delete-title">
+      <div className="dialog-heading"><h2 id="team-delete-title">Delete {deletion.team.name}?</h2></div>
+      <p className="dev-details">Team ID ends in {deletion.team.id.slice(-8)}. This workspace contains {deletion.projects} {deletion.projects === 1 ? 'project' : 'projects'} and {deletion.tasks} {deletion.tasks === 1 ? 'task' : 'tasks'}.</p>
+      <p className="dev-details">Deleting it permanently removes its shared records, memberships, invitations, and activity history.</p>
+      {deletionError && <p role="alert" className="dev-details">{deletionError}</p>}
+      <div className="dialog-actions">
+        <button className="secondary" type="button" autoFocus disabled={busy} onClick={() => setDeletion(null)}>Cancel</button>
+        <button className="primary destructive-primary" type="button" disabled={busy} onClick={() => void deleteTeam()}>{busy ? 'Deleting…' : 'Delete team permanently'}</button>
+      </div>
+    </dialog>}
   </main>
 }
