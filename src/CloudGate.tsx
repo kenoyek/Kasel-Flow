@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import type { Session } from '@supabase/supabase-js'
+import type { AuthError, Session } from '@supabase/supabase-js'
 import { cloud, readCloud, writeCloud, type CloudWorkspace } from './cloud-workspace'
 import { TeamPicker } from './TeamPicker'
 import { readTeam, saveTeam, type Team } from './team-workspace'
@@ -13,6 +13,28 @@ export type CloudControls = {
   team?: Team
   switchWorkspace: () => void
   signOut: () => Promise<void>
+}
+
+function signInError(error: AuthError) {
+  if (error.code === 'over_email_send_rate_limit') {
+    return 'Supabase has reached its email sending limit. Wait before requesting another link. If this continues, ask your administrator to check email rate limits and SMTP settings in Supabase.'
+  }
+  if (error.status === 429 || error.code === 'over_request_rate_limit') {
+    return 'Too many sign-in requests. Wait at least a minute before trying again.'
+  }
+  if (error.code === 'email_address_not_authorized') {
+    return 'Supabase cannot send email to this address with the current mail settings. Ask your administrator to check the email provider settings.'
+  }
+  if (error.code === 'otp_disabled' || error.code === 'email_provider_disabled') {
+    return 'Email sign-in is disabled in Supabase. Ask your administrator to enable it.'
+  }
+  if (error.code === 'signup_disabled' || error.code === 'user_not_found' || error.code === 'email_not_confirmed') {
+    return 'Use the verified email for your existing Kasel OS account. Ask your administrator to check your account in Supabase if this continues.'
+  }
+  if (error.status === 0 || (error.name === 'AuthRetryableFetchError' && !error.status)) {
+    return 'Could not reach Supabase. Check your connection and try again.'
+  }
+  return 'Supabase could not send a sign-in link. Ask your administrator to check the Supabase Auth logs for this attempt.'
 }
 
 export function CloudGate({ render }: {render: (options?: CloudControls, openAccount?: () => void) => ReactNode}) {
@@ -63,7 +85,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       const {error} = await cloud.auth.signInWithOtp({email:email.trim(), options:{
         shouldCreateUser:false, emailRedirectTo:new URL(import.meta.env.BASE_URL, window.location.origin).href,
       }})
-      setNotice(error ? 'Could not send a sign-in link. Check that your account is provisioned and try again.' : 'Check your email for the sign-in link. Open it in this browser.')
+      setNotice(error ? signInError(error) : 'Check your email for the sign-in link. Open it in this browser.')
     } catch {
       setNotice('Unable to request a sign-in link. Try again when you’re online.')
     } finally { setSending(false) }
