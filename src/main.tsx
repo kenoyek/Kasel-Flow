@@ -15,7 +15,7 @@ import { TaskBoard } from './TaskBoard'
 import { TeamActivity } from './TeamActivity'
 import { useTeamUpdates } from './useTeamUpdates'
 import { TeamWorkload, unassigned } from './TeamWorkload'
-import { listTaskAssignees, type TaskAssignee } from './team-workspace'
+import { listPendingInvites, listTaskAssignees, type TaskAssignee } from './team-workspace'
 import { githubRepository } from './development-data'
 import './style.css'
 
@@ -56,6 +56,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [saved, setSaved] = useState(data)
   const [revision, setRevision] = useState(account?.initial.revision ?? 0)
   const [cloudBusy, setCloudBusy] = useState(false)
+  const [pendingInvites, setPendingInvites] = useState(0)
   const [cloudMessage, setCloudMessage] = useState('')
   const team = account?.team
   const readOnly = team?.role === 'viewer'
@@ -86,6 +87,28 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     catch { return false }
   })
   const [storageError, setStorageError] = useState(false)
+
+  const inviteOwner = team ? undefined : account?.owner
+  useEffect(() => {
+    if (!inviteOwner) return
+    let request: AbortController | undefined
+    function checkInvites() {
+      request?.abort()
+      const next = new AbortController()
+      request = next
+      listPendingInvites(next.signal).then(items => {
+        if (!next.signal.aborted) setPendingInvites(items.length)
+      }).catch(() => {
+        if (!next.signal.aborted) setPendingInvites(0)
+      })
+    }
+    checkInvites()
+    window.addEventListener('focus', checkInvites)
+    return () => {
+      request?.abort()
+      window.removeEventListener('focus', checkInvites)
+    }
+  }, [inviteOwner])
 
   useEffect(() => {
     if (!teamId) return
@@ -143,9 +166,9 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     } finally {setCloudBusy(false)}
   }
 
-  function switchWorkspace() {
+  function switchWorkspace(focusInvites = false) {
     if (!account || cloudBusy || (dirty && !window.confirm('Switch workspaces and discard unsaved edits?'))) return
-    account.switchWorkspace()
+    account.switchWorkspace(focusInvites)
   }
 
   async function signOut() {
@@ -294,8 +317,12 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
           {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy || Boolean(newer)} onClick={() => void saveCloud()}>Save to cloud</button>}
-          <button className="text-button" disabled={cloudBusy} onClick={switchWorkspace}>Switch workspace</button>
+          <button className="text-button" disabled={cloudBusy} onClick={() => switchWorkspace()}>Switch workspace</button>
           <button className="text-button" disabled={cloudBusy} onClick={() => void signOut()}>Sign out</button>
+        </section>}
+        {inviteOwner && pendingInvites > 0 && <section className="panel cloud-bar" aria-label="Pending team invitations">
+          <span>{pendingInvites === 1 ? 'You have a pending team invitation.' : 'You have ' + pendingInvites + ' pending team invitations.'}</span>
+          <button className="secondary" disabled={cloudBusy} onClick={() => switchWorkspace(true)}>Review invitations</button>
         </section>}
         {team && <section className="panel cloud-bar" aria-label="Team synchronization">
           <span role="status">{refreshError ? 'Could not check the team workspace. Your open copy is still available.' :

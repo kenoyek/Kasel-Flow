@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { cloud } from './cloud-workspace'
-import { listTeams, readTeam, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
+import { listPendingInvites, listTeams, readTeam, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
 
 function creationError(error: {code?: string; message?: string}) {
   if (error.code === '42501' && error.message === 'Verified email required') {
@@ -15,8 +15,8 @@ function creationError(error: {code?: string; message?: string}) {
   return 'Could not create the team. Try again or check the Supabase logs for this request.'
 }
 
-export function TeamPicker({owner, openPrivate, openTeam}: {
-  owner: string; openPrivate: () => void; openTeam: (team: Team) => void
+export function TeamPicker({owner, openPrivate, openTeam, focusInvites}: {
+  owner: string; focusInvites: boolean; openPrivate: () => void; openTeam: (team: Team) => void
 }) {
   const [teams, setTeams] = useState<Team[]>([])
   const [inviteError, setInviteError] = useState(false)
@@ -29,13 +29,13 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
   const [busy, setBusy] = useState(true)
   const [message, setMessage] = useState('')
   const alive = useRef(false)
+  const invitationsHeading = useRef<HTMLHeadingElement>(null)
 
   async function refresh() {
-    const [teamsResult, invitesResult] = await Promise.allSettled([listTeams(owner), cloud!.rpc('pending_team_invites')])
+    const [teamsResult, invitesResult] = await Promise.allSettled([listTeams(owner), listPendingInvites()])
     if (alive.current) {
-      const pending = invitesResult.status === 'fulfilled' ? invitesResult.value : null
-      setInviteError(!pending || Boolean(pending.error))
-      if (pending && !pending.error) setInvites(pending.data ?? [])
+      setInviteError(invitesResult.status === 'rejected')
+      if (invitesResult.status === 'fulfilled') setInvites(invitesResult.value)
       if (teamsResult.status === 'fulfilled') setTeams(teamsResult.value)
     }
     if (teamsResult.status === 'rejected') throw teamsResult.reason
@@ -61,9 +61,10 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
 
   useEffect(() => {
     alive.current = true
+    if (focusInvites) invitationsHeading.current?.focus()
     void run(async () => {await refresh()}, 'Unable to load team workspaces. Try refreshing.')
     return () => {alive.current = false}
-  }, [owner])
+  }, [owner, focusInvites])
 
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -151,7 +152,7 @@ export function TeamPicker({owner, openPrivate, openTeam}: {
       <section className="panel dev-card assistant-panel"><h2>Create team</h2>
         <form onSubmit={create}><label>Team name<input name="name" maxLength={100} required /></label><button className="primary" disabled={busy}>Create team</button></form>
       </section>
-      <section className="panel dev-card assistant-panel"><h2>Invitations</h2>
+      <section className="panel dev-card assistant-panel"><h2 ref={invitationsHeading} tabIndex={-1}>Invitations</h2>
         {inviteError ? <p className="dev-muted">Invitations could not be loaded. Refresh workspaces to retry.</p> : !invites.length && <p className="dev-muted">No pending invitations for your verified email.</p>}
         {invites.map(item => <div className="team-row" key={item.id}>
           <span>{item.team_name} · {item.member_role} · expires {item.expires_at.slice(0,10)}</span>

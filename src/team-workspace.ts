@@ -18,6 +18,14 @@ export async function listTeams(owner: string) {
   }).sort((first, second) => first.name.localeCompare(second.name))
 }
 
+export async function listPendingInvites(signal?: AbortSignal): Promise<TeamInvite[]> {
+  const request = cloud!.rpc('pending_team_invites')
+  if (signal) request.abortSignal(signal)
+  const {data,error} = await request
+  if (error) throw error
+  return data ?? []
+}
+
 export async function readTeam(team: string, signal: AbortSignal): Promise<CloudWorkspace> {
   const {data,error} = await cloud!.from('team_workspaces').select('workspace,revision').eq('id',team).abortSignal(signal).single()
   if (error || !data) throw new Error('This team workspace is unavailable.')

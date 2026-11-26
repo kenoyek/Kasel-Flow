@@ -12,7 +12,7 @@ export type CloudControls = {
   initial: CloudWorkspace
   save: (workspace: Workspace, revision: number) => Promise<number>
   team?: Team
-  switchWorkspace: () => void
+  switchWorkspace: (focusInvites?: boolean) => void
   signOut: () => Promise<void>
   setPassword: (password: string) => Promise<void>
 }
@@ -43,7 +43,7 @@ function signInError(error: AuthError, method: 'link' | 'password') {
 
 export function CloudGate({ render }: {render: (options?: CloudControls, openAccount?: () => void) => ReactNode}) {
   const [session, setSession] = useState<Session | null>()
-  const [picker, setPicker] = useState(false)
+  const [picker, setPicker] = useState<false | 'teams' | 'invitations'>(false)
   const [team, setTeam] = useState<Team | null>(null)
   const [demo, setDemo] = useState(false)
   const [signInOpen, setSignInOpen] = useState(false)
@@ -166,13 +166,13 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       {signInForm(() => setSignInOpen(false))}
     </dialog>}
   </>
-  if (owner && picker) return <TeamPicker owner={owner} openPrivate={() => openWorkspace(null)} openTeam={openWorkspace} />
+  if (owner && picker) return <TeamPicker owner={owner} focusInvites={picker === 'invitations'} openPrivate={() => openWorkspace(null)} openTeam={openWorkspace} />
   if (owner && workspace?.owner === owner && workspace.team === team?.id && session) return render({
     owner,
     email:session.user.email ?? 'Signed in',
     initial:workspace.snapshot,
     team:team ?? undefined,
-    switchWorkspace:() => setPicker(true),
+    switchWorkspace:focusInvites => setPicker(focusInvites ? 'invitations' : 'teams'),
     save:(data, revision) => team ? saveTeam(team.id, data, revision) : writeCloud(owner, data, revision),
     async setPassword(password) {
       const {error} = await cloud!.auth.updateUser({password})
@@ -193,7 +193,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   return <main className="account-gate"><section className="panel dev-card assistant-panel">
     <h1>Kasel OS</h1>
     <p className="dev-muted" role="status">{loadError || 'Loading workspace…'}</p>
-    {owner && <button className="text-button gate-demo" onClick={() => setPicker(true)}>Choose workspace</button>}
+    {owner && <button className="text-button gate-demo" onClick={() => setPicker('teams')}>Choose workspace</button>}
     {loadError && <button className="primary" onClick={() => {setLoadError('');setAttempt(current => current + 1)}}>Retry load</button>}
     <button className="text-button gate-demo" onClick={() => {setSignInOpen(false);setDemo(true)}}>Open browser demo</button>
     {owner && <button className="text-button gate-demo" onClick={() => void cloud?.auth.signOut({scope:'local'})}>Sign out</button>}
