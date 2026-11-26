@@ -47,7 +47,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [team, setTeam] = useState<Team | null>(null)
   const [demo, setDemo] = useState(false)
   const [signInOpen, setSignInOpen] = useState(false)
-  const inDemo = demo && !(signInOpen && session?.user.id)
+  const inDemo = session === null || (demo && !(signInOpen && session?.user.id))
   const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -120,11 +120,11 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     setPicker(false)
   }
 
-  function signInForm(close?: () => void) {
+  function signInForm(close: () => void) {
     return <form onSubmit={signIn}>
       <div className="dialog-heading">
         <h2 id="sign-in-heading">Sign in to your private workspace</h2>
-        {close && <button className="icon-button" type="button" aria-label="Close sign-in" onClick={close}><X size={20} /></button>}
+        <button className="icon-button" type="button" aria-label="Close sign-in" onClick={close}><X size={20} /></button>
       </div>
       <label>Email<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
       {method === 'password' && <label>Password<input required name="password" type="password" autoComplete="current-password" /></label>}
@@ -183,11 +183,9 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
 
   return <main className="account-gate"><section className="panel dev-card assistant-panel">
     <h1>Kasel OS</h1>
-    {session === undefined || owner ? <>
-      <p className="dev-muted" role="status">{loadError || 'Loading workspace…'}</p>
-      {owner && <button className="text-button gate-demo" onClick={() => setPicker(true)}>Choose workspace</button>}
-      {loadError && <button className="primary" onClick={() => {setLoadError('');setAttempt(current => current + 1)}}>Retry load</button>}
-    </> : signInForm()}
+    <p className="dev-muted" role="status">{loadError || 'Loading workspace…'}</p>
+    {owner && <button className="text-button gate-demo" onClick={() => setPicker(true)}>Choose workspace</button>}
+    {loadError && <button className="primary" onClick={() => {setLoadError('');setAttempt(current => current + 1)}}>Retry load</button>}
     <button className="text-button gate-demo" onClick={() => {setSignInOpen(false);setDemo(true)}}>Open browser demo</button>
     {owner && <button className="text-button gate-demo" onClick={() => void cloud?.auth.signOut({scope:'local'})}>Sign out</button>}
   </section></main>
