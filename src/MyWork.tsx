@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Bell, ClipboardCheck } from 'lucide-react'
 import { taskPriorities, type Task } from './data'
 import { blockedTask } from './task-dependencies'
-import type { TaskMention } from './TaskDiscussion'
+import { taskNoticeText, type TaskMention } from './TaskDiscussion'
 import type { ReviewNotice } from './TaskReviews'
 
 type Props = {
@@ -50,11 +50,11 @@ export function MyWork({owner,tasks,today,mentions,reviews,renderTask,openMentio
           <ClipboardCheck className="task-check" /><span className="task-name"><strong>{review.title}</strong><small>{review.task_title}</small></span>
         </button>) : <p className="empty">No pending deliverable reviews.</p>}
       </section>
-      <section className="panel" aria-label="Unread mentions">
-        <div className="panel-heading"><h2>Unread mentions</h2><span className="status">{unread.length}</span></div>
+      <section className="panel" aria-label="Unread discussion alerts">
+        <div className="panel-heading"><h2>Unread discussion alerts</h2><span className="status">{unread.length}</span></div>
         {unread.length ? unread.map(mention => <button type="button" className="task-row inbox-row" key={mention.comment_id} onClick={() => openMention(mention)}>
-          <Bell className="task-check" /><span className="task-name"><strong>{mention.task_title}</strong><small>{mention.author_label} mentioned you</small></span>
-        </button>) : <p className="empty">No unread mentions.</p>}
+          <Bell className="task-check" /><span className="task-name"><strong>{mention.task_title}</strong><small>{taskNoticeText(mention)}</small></span>
+        </button>) : <p className="empty">No unread discussion alerts.</p>}
       </section>
     </div>
   </div>

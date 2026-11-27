@@ -3,9 +3,13 @@ import { cloud } from './cloud-workspace'
 import type { TaskAssignee } from './team-workspace'
 
 type Comment = { id: string; author_label: string; body: string; mention_labels: string[]; created_at: string }
-export type TaskMention = { comment_id: string; task_id: string; task_title: string; author_label: string; read_at: string | null }
+export type TaskMention = { comment_id: string; task_id: string; task_title: string; author_label: string; read_at: string | null; notice_kind?: 'comment' | 'mention' }
 const dateFormat = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'medium',timeStyle:'short'})
 const pageSize = 20
+
+export function taskNoticeText(notice: TaskMention) {
+  return notice.author_label + (notice.notice_kind === 'comment' ? ' commented on this task' : ' mentioned you')
+}
 
 export function useTaskMentions(teamId?: string) {
   const [mentions,setMentions] = useState<TaskMention[]>([])
@@ -18,16 +22,24 @@ export function useTaskMentions(teamId?: string) {
       request?.abort()
       const next = new AbortController()
       request = next
-      void client.from('team_task_mentions').select('comment_id,task_id,task_title,author_label,read_at')
+      void client.from('team_task_mentions').select('comment_id,task_id,task_title,author_label,read_at,notice_kind')
         .eq('team_id',teamId).order('read_at',{ascending:false,nullsFirst:true}).order('created_at',{ascending:false})
         .limit(20).abortSignal(next.signal).then(({data,error}) => {
           if (!next.signal.aborted && !error) setMentions(data ?? [])
         })
     }
     check()
+    const channel = client.channel('team-task-notices:' + teamId + ':' + crypto.randomUUID())
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'team_task_mentions',filter:'team_id=eq.' + teamId},check)
+      .subscribe(status => {if (status === 'SUBSCRIBED') check()})
     window.addEventListener('focus',check)
     const timer = window.setInterval(() => {if (!document.hidden) check()},30000)
-    return () => {request?.abort();window.removeEventListener('focus',check);window.clearInterval(timer)}
+    return () => {
+      request?.abort()
+      window.removeEventListener('focus',check)
+      window.clearInterval(timer)
+      void client.removeChannel(channel)
+    }
   },[teamId,refresh])
 
   async function markRead(mention: TaskMention) {

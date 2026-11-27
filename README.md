@@ -122,7 +122,7 @@ Open **Timeline** and use the existing project, status, priority, or assignee fi
 
 ## My Work
 
-In a shared or restricted workspace, open **My Work** to see tasks assigned to your account. Filter for open, overdue, blocked, or completed work. The same screen shows pending deliverable reviews and unread mentions and opens the relevant task directly.
+In a shared or restricted workspace, open **My Work** to see tasks assigned to your account. Filter for open, overdue, blocked, or completed work. The same screen shows pending deliverable reviews and unread discussion alerts and opens the relevant task directly.
 
 ## Task templates
 
@@ -133,6 +133,12 @@ From **Projects**, **Tasks**, or **Board**, choose **Use a task template**. Sele
 Apply the mention email migrations `202611260014` and `202611260015` in order. The job sends one email per new mention to a current team member with a confirmed email. It leaves task and comment contents in Kasel OS. In-app mentions continue to work independently of delivery.
 
 Create a separate **Postmark Server API Token** for the transactional server and add it in Supabase **Vault** as `kasel_postmark_server_token`. The SMTP credentials used by Supabase Auth stay separate. The job uses the verified sender `hello@kasel.digital` and checks the queue every minute. It ignores invitations and other account messages, which still use Supabase Auth. Historical mentions are excluded. Unsent jobs expire after 24 hours. A Postmark rate-limit response is retried, and ambiguous delivery failures are recorded for investigation.
+
+## Team chat and comment alerts
+
+Apply `202611260016_team_chat_and_comment_notifications.sql`. **Chat** is a shared room within each team or restricted project workspace. Owners and editors can post messages, and viewers can read them. Chat messages save immediately.
+
+New task comments notify the current assignee and teammates who previously posted in that discussion. Explicit mentions notify the selected teammates and continue to queue mention emails. The author does not receive their own alert. Teammates can open the comment from the notification bell or **My Work**. Chat uses Realtime and provides a refresh button if the connection is unavailable.
 
 ## Run locally
 

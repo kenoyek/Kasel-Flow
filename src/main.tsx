@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, Columns3, GanttChartSquare, History, LayoutDashboard, ListTodo, ListChecks, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, Columns3, GanttChartSquare, History, LayoutDashboard, ListTodo, ListChecks, MessagesSquare, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
 import { colors, departments, seed, statuses, taskPriorities, type Priority, type ChecklistItem, type Project, type Status, type Task, type Workspace } from './data'
 import { PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { CloudGate, type CloudControls } from './CloudGate'
@@ -12,7 +12,8 @@ import { Creative } from './Creative'
 import { Development } from './Development'
 import { MyWork } from './MyWork'
 import { TaskReviews, useReviewInbox, type ReviewNotice } from './TaskReviews'
-import { TaskDiscussion, useTaskMentions, type TaskMention } from './TaskDiscussion'
+import { TeamChat } from './TeamChat'
+import { TaskDiscussion, taskNoticeText, useTaskMentions, type TaskMention } from './TaskDiscussion'
 import { TaskDependencies } from './TaskDependencies'
 import { blockedTask, dependsOnTask, taskDependencies } from './task-dependencies'
 import { TaskChecklist, checklistProgress } from './TaskChecklist'
@@ -30,6 +31,7 @@ const storageKey = 'kasel-os-workspace-v1'
 const links = [
   { label: 'Overview', icon: LayoutDashboard },
   { label: 'My Work', icon: ListChecks },
+  { label: 'Chat', icon: MessagesSquare },
   { label: 'Projects', icon: FolderKanban },
   { label: 'Tasks', icon: ListTodo },
   { label: 'Board', icon: Columns3 },
@@ -372,7 +374,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     <aside className={mobileNav ? 'sidebar visible' : 'sidebar'}>
       <button className="brand" onClick={() => navigate('Overview')}><span className="brand-mark">K</span><span>Kasel <b>OS</b><small>AGENCY WORKSPACE</small></span></button>
       <div className="workspace-label"><span className="workspace-icon">KD</span><span><strong>{team?.name ?? 'Kasel Digital'}</strong><small>{team ? restrictedProject ? 'Restricted project' : 'Team workspace' : account ? 'Private cloud workspace' : 'Demo workspace'}</small></span></div>
-      <nav aria-label="Workspace"><p>WORKSPACE</p>{links.filter(link => team ? link.label !== 'Assistant' : !['My Work','Workload','Activity'].includes(link.label)).map(({label,icon:Icon}) => <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}{page === label && <ChevronRight size={15} />}</button>)}
+      <nav aria-label="Workspace"><p>WORKSPACE</p>{links.filter(link => team ? link.label !== 'Assistant' : !['My Work','Chat','Workload','Activity'].includes(link.label)).map(({label,icon:Icon}) => <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}{page === label && <ChevronRight size={15} />}</button>)}
       <p>DEPARTMENTS</p>{departments.map((label,index) => {const Icon = departmentIcons[index]; return <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}</button>})}</nav>
       <div className="sidebar-bottom"><span className="avatar">KD</span><span><strong>Kasel Digital</strong><small>{account?.email ?? 'Demo administrator'}</small></span></div>
     </aside>
@@ -387,14 +389,14 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
           {!account && <button className="secondary top-sign-in" onClick={openAccount ?? (() => navigate('Settings'))}>Sign in</button>}
         </div>
         {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{mentions.map(mention => <button key={mention.comment_id} type="button" onClick={() => openMention(mention)}>
-          <Bell size={17} /><span><strong>{mention.task_title}</strong><small>{mention.author_label} mentioned you{!mention.read_at && ' · New'}</small></span>
+          <Bell size={17} /><span><strong>{mention.task_title}</strong><small>{taskNoticeText(mention)}{!mention.read_at && ' · New'}</small></span>
         </button>)}{reviewNotices.map(notice => <button key={notice.id} type="button" onClick={() => openReviewNotice(notice)}>
           <ClipboardCheck size={17} /><span><strong>{notice.title}</strong><small>Deliverable review · {notice.task_title}</small></span>
         </button>)}{!reviews.length && !reviewExtras && !mentions.length && !reviewNotices.length && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Timeline:'Plan work by start date and deadline.','My Work':'Find your assignments, review requests, and mentions.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
-        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && page !== 'My Work' && (!restrictedProject || taskPage) && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Timeline:'Plan work by start date and deadline.','My Work':'Find your assignments, review requests, and discussion alerts.',Chat:'Talk with members of this workspace.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
+        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && page !== 'My Work' && page !== 'Chat' && (!restrictedProject || taskPage) && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
         {!readOnly && (page === 'Projects' || page === 'Tasks' || page === 'Board') && projects.length > 0 &&
           <button className="secondary template-launch" onClick={() => setTemplatesOpen(true)}><Plus size={16} /> Use a task template</button>}
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
@@ -436,6 +438,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
+          {page === 'Chat' && teamId && <TeamChat teamId={teamId} readOnly={readOnly} />}
           {page === 'My Work' && team && account && <MyWork owner={account.owner} tasks={tasksById} today={today}
             mentions={mentions} reviews={reviewNotices} renderTask={renderTask} openMention={openMention} openReview={openReviewNotice} />}
           {page === 'Activity' && teamId && <TeamActivity teamId={teamId} revision={revision} />}
