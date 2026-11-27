@@ -2,7 +2,7 @@ import { cloud, emptyWorkspace, type CloudWorkspace } from './cloud-workspace'
 import type { Workspace } from './data'
 
 export type TeamRole = 'owner' | 'editor' | 'viewer'
-export type Team = { id: string; name: string; role: TeamRole }
+export type Team = { id: string; name: string; role: TeamRole; kind?: 'team' | 'restricted_project' }
 export type TeamInvite = { id: string; team_name: string; expires_at: string; member_role: TeamRole }
 export type SentInvite = Omit<TeamInvite, 'team_name'> & { email: string }
 export type TaskAssignee = { user_id: string; label: string }
@@ -10,11 +10,15 @@ export type Member = { user_id: string; label: string; member_role: TeamRole }
 
 export async function listTeams(owner: string) {
   const client = cloud!
-  const {data,error} = await client.from('team_members').select('member_role,team_workspaces!inner(id,name)').eq('user_id',owner)
+  type Membership = {member_role: TeamRole; team_workspaces: {id:string; name:string; workspace_kind?: Team['kind']} | null}
+  const query = (fields: string) => client.from('team_members').select(fields).eq('user_id',owner)
+    .overrideTypes<Membership[],{merge:false}>()
+  let {data,error} = await query('member_role,team_workspaces!inner(id,name,workspace_kind)')
+  if (error?.code === '42703') ({data,error} = await query('member_role,team_workspaces!inner(id,name)'))
   if (error) throw error
   return (data ?? []).flatMap(row => {
-    const joined = row.team_workspaces as unknown as {id: string; name: string}
-    return joined ? [{...joined, role: row.member_role as TeamRole}] : []
+    const joined = row.team_workspaces
+    return joined ? [{id:joined.id, name:joined.name, kind:joined.workspace_kind, role:row.member_role}] : []
   }).sort((first, second) => first.name.localeCompare(second.name))
 }
 

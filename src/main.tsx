@@ -61,6 +61,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [cloudMessage, setCloudMessage] = useState('')
   const team = account?.team
   const readOnly = team?.role === 'viewer'
+  const restrictedProject = team?.kind === 'restricted_project'
   const dirty = Boolean(account && saved !== data)
   const [page, setPage] = useState('Overview')
   const [projectFilter, setProjectFilter] = useState('')
@@ -249,7 +250,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   }
 
   function openProject(project: Project | null = null) {
-    if (readOnly) return
+    if (readOnly || (restrictedProject && !project)) return
     setEditingProject(project)
     setModal('project')
   }
@@ -317,7 +318,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   return <div className="app">
     <aside className={mobileNav ? 'sidebar visible' : 'sidebar'}>
       <button className="brand" onClick={() => navigate('Overview')}><span className="brand-mark">K</span><span>Kasel <b>OS</b><small>AGENCY WORKSPACE</small></span></button>
-      <div className="workspace-label"><span className="workspace-icon">KD</span><span><strong>{team?.name ?? 'Kasel Digital'}</strong><small>{team ? 'Team workspace' : account ? 'Private cloud workspace' : 'Demo workspace'}</small></span></div>
+      <div className="workspace-label"><span className="workspace-icon">KD</span><span><strong>{team?.name ?? 'Kasel Digital'}</strong><small>{team ? restrictedProject ? 'Restricted project' : 'Team workspace' : account ? 'Private cloud workspace' : 'Demo workspace'}</small></span></div>
       <nav aria-label="Workspace"><p>WORKSPACE</p>{links.filter(link => team ? link.label !== 'Assistant' : !['Workload','Activity'].includes(link.label)).map(({label,icon:Icon}) => <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}{page === label && <ChevronRight size={15} />}</button>)}
       <p>DEPARTMENTS</p>{departments.map((label,index) => {const Icon = departmentIcons[index]; return <button aria-current={page === label ? 'page' : undefined} key={label} onClick={() => navigate(label)}><Icon size={18} />{label}</button>})}</nav>
       <div className="sidebar-bottom"><span className="avatar">KD</span><span><strong>Kasel Digital</strong><small>{account?.email ?? 'Demo administrator'}</small></span></div>
@@ -338,7 +339,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       </header>
       <main>
         <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
-        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && (!restrictedProject || taskPage) && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
           {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy || Boolean(newer)} onClick={() => void saveCloud()}>Save to cloud</button>}
@@ -418,7 +419,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
             <div className="filters"><label>Project <select value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="">All projects</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>{page !== 'Board' && <label>Status <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="">All statuses</option>{statuses.map(status => <option key={status}>{status}</option>)}</select></label>}
             <label>Priority <select value={priorityFilter} onChange={event => setPriorityFilter(event.target.value)}>
               <option value="">All priorities</option>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}
-            </select></label>{department && !readOnly && <button className="text-button" onClick={() => projects.length ? openTask() : openProject()}><Plus size={16} />{projects.length ? 'New task' : 'New project'}</button>}{roster && <label>Assignee <select value={assigneeFilter} onChange={event => setAssigneeFilter(event.target.value)}>
+            </select></label>{department && !readOnly && (!restrictedProject || projects.length > 0) && <button className="text-button" onClick={() => projects.length ? openTask() : openProject()}><Plus size={16} />{projects.length ? 'New task' : 'New project'}</button>}{roster && <label>Assignee <select value={assigneeFilter} onChange={event => setAssigneeFilter(event.target.value)}>
               <option value="">All assignees</option><option value={unassigned}>Unassigned</option>
               {roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
             </select></label>}

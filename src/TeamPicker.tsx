@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { departments } from './data'
 import { cloud } from './cloud-workspace'
 import { listPendingInvites, listTeams, readTeam, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
 
@@ -35,6 +36,7 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
   const [accepted, setAccepted] = useState<AcceptedInvite[]>([])
   const [historyError, setHistoryError] = useState(false)
   const [sent, setSent] = useState<SentInvite[]>([])
+  const [createKind, setCreateKind] = useState<'team' | 'restricted_project'>('team')
   const [busy, setBusy] = useState(true)
   const [message, setMessage] = useState('')
   const alive = useRef(false)
@@ -86,17 +88,21 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = event.currentTarget
-    const name = String(new FormData(form).get('name') ?? '').trim()
+    const fields = new FormData(form)
+    const name = String(fields.get('name') ?? '').trim()
     if (!name) return
     void run(async () => {
-      const {data,error} = await cloud!.rpc('create_team_workspace',{team_name:name})
+      const response = createKind === 'team'
+        ? await cloud!.rpc('create_team_workspace',{team_name:name})
+        : await cloud!.rpc('create_restricted_project_workspace',{project_name:name, department_name:fields.get('department')})
+      const {data,error} = response
       if (!alive.current) return
       if (error) {setMessage(creationError(error));return}
       if (typeof data !== 'string') throw Error('Missing team ID')
-      const team: Team = {id:data, name, role:'owner'}
+      const team: Team = {id:data, name, role:'owner', kind:createKind}
       setTeams(previous => [...previous.filter(item => item.id !== team.id),team].sort((a,b) => a.name.localeCompare(b.name)))
       form.reset()
-      setMessage('Team created. Open it or choose Manage ' + name + ' to invite teammates.')
+      setMessage((createKind === 'team' ? 'Team' : 'Restricted project') + ' created. Open it or choose Manage ' + name + ' to invite teammates.')
     }, 'Could not confirm team creation. Refresh workspaces before trying again.')
   }
 
@@ -177,14 +183,24 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
         {busy && <p role="status" className="dev-muted">Working…</p>}
         {!busy && !teams.length && <p className="dev-muted">{openPrivate ? 'No team workspaces yet.' : 'No teams have been assigned to this account yet.'}</p>}
         {teams.map(team => <div className="team-row team-workspace-row" key={team.id}>
-          <div className="team-workspace-label"><strong>{team.name}</strong><span className="status">{team.role}</span></div>
+          <div className="team-workspace-label"><strong>{team.name}</strong><span className="status">{team.role}</span>{team.kind === 'restricted_project' && <span className="status">Restricted project</span>}</div>
           <button className="primary" aria-label={'Open ' + team.name + ' workspace'} disabled={busy} onClick={() => openTeam(team)}>Open workspace</button>
           {team.role === 'owner' && <button className="text-button" disabled={busy} onClick={() => void run(() => loadRoster(team),'Could not load the team roster.')}>Manage {team.name}</button>}
         </div>)}
         <button className="text-button" disabled={busy} onClick={() => void run(async () => {await refresh()},'Could not refresh workspaces.')}>Refresh workspaces</button>
       </section>
-      {openPrivate && <section className="panel dev-card assistant-panel"><h2>Create team</h2>
-        <form onSubmit={create}><label>Team name<input name="name" maxLength={100} required /></label><button className="primary" disabled={busy}>Create team</button></form>
+      {openPrivate && <section className="panel dev-card assistant-panel"><h2>Create workspace</h2>
+        <form onSubmit={create}>
+          <label>Workspace type<select value={createKind} disabled={busy} onChange={event => setCreateKind(event.target.value as typeof createKind)}>
+            <option value="team">Team</option><option value="restricted_project">Restricted project</option>
+          </select></label>
+          <label>{createKind === 'team' ? 'Team name' : 'Project name'}<input name="name" maxLength={100} required /></label>
+          {createKind === 'restricted_project' && <>
+            <label>Department<select name="department">{departments.map(department => <option key={department}>{department}</option>)}</select></label>
+            <p className="dev-muted">Only members invited to this workspace can see this project and its tasks.</p>
+          </>}
+          <button className="primary" disabled={busy}>{createKind === 'team' ? 'Create team' : 'Create restricted project'}</button>
+        </form>
       </section>}
       <section className="panel dev-card assistant-panel"><h2 ref={invitationsHeading} tabIndex={-1}>Invitations</h2>
         {inviteError ? <p className="dev-muted">Invitations could not be loaded. Refresh workspaces to retry.</p> : !invites.length && <p className="dev-muted">No pending invitations for your verified email.</p>}
