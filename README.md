@@ -140,6 +140,10 @@ Apply `202611260016_team_chat_and_comment_notifications.sql`. After opening a te
 
 New task comments notify the current assignee and teammates who previously posted in that discussion. Explicit mentions notify the selected teammates and continue to queue mention emails. The author does not receive their own alert. Teammates can open the comment from the notification bell or **My Work**. Chat uses Realtime and provides a refresh button if the connection is unavailable.
 
+### Pinned chat messages
+
+Owners and editors can pin one message per room, replace it, or unpin it. The pinned message appears above the conversation for all workspace members, including viewers. Pinning does not add unread messages.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

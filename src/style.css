@@ -299,3 +299,6 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .chat-compose label { display: grid; gap: 5px; margin-bottom: 8px; font-size: 13px; font-weight: 650 }
 .chat-compose textarea { width: 100%; resize: vertical }
 .chat-messages { margin: 0; padding: 0 10px }
+.chat-pinned { padding: 10px 15px; border-bottom: 1px solid var(--line); background: var(--hover); overflow-wrap: anywhere; font-size: 13px }
+.chat-pinned h3 { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--accent-text) }
+.chat-pinned p { white-space: pre-wrap; margin-top: 4px }
