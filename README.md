@@ -108,6 +108,10 @@ After applying `202611260011_team_invitation_history.sql`, team owners can see p
 
 Apply `202611260012_restricted_project_workspaces.sql`. Workspace administrators can choose **Restricted project** under **Switch workspace → Create workspace**. Each restricted workspace contains one new project, with its own members, invitations, tasks, discussions, and activity. Invite the required people from that workspace’s **Manage** panel. Membership in a different workspace does not grant access. Existing projects can continue in their current workspaces.
 
+## Deliverable reviews
+
+Apply `202611260013_team_deliverable_reviews.sql`. Open a saved task in a shared or restricted workspace and choose **Request review**. Include a version-specific HTTPS deliverable link and pick another member of that workspace. The assigned reviewer gets an in-app notification and can approve or request changes. Review records are visible to the requester, reviewer, and workspace owner. A viewer can make a decision when assigned as reviewer. Request a new review for a revised deliverable. Give an external reviewer access only to a restricted workspace dedicated to their project, and manage file access through the provider that hosts the link.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.
