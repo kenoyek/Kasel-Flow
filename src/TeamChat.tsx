@@ -1,11 +1,19 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { MessagesSquare, Pin, RefreshCw, Reply, Search, Send, X } from 'lucide-react'
+import { MessagesSquare, Pin, RefreshCw, Reply, Search, Send, SmilePlus, X } from 'lucide-react'
 import { cloud } from './cloud-workspace'
 
 type MessageContent = {id:string; author_id?:string | null; author_label:string; body:string}
 type Message = MessageContent & {created_at:string; reply_to:string | null; edited_at:string | null}
 type SearchHit = MessageContent & {created_at:string}
 type Profile = {user_id:string; label:string; display_name:string | null}
+const reactionOptions = [
+  {emoji:'👍',label:'Thumbs up'},
+  {emoji:'❤️',label:'Heart'},
+  {emoji:'🎉',label:'Celebrate'},
+  {emoji:'👀',label:'Eyes'},
+  {emoji:'✅',label:'Done'},
+]
+type Reaction = {message_id:string; emoji:string; total:number; mine:boolean}
 const batch = 30
 const dayLabel = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'long'})
 const timeLabel = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',hour:'numeric',minute:'2-digit'})
@@ -25,6 +33,10 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   const [pinError,setPinError] = useState('')
   const [parents,setParents] = useState(new Map<string,MessageContent>())
   const [profiles,setProfiles] = useState<Profile[]>([])
+  const [reactions,setReactions] = useState<Reaction[]>([])
+  const [reactionPicker,setReactionPicker] = useState<string | null>(null)
+  const [reactionBusy,setReactionBusy] = useState(false)
+  const [reactionError,setReactionError] = useState('')
   const [messages,setMessages] = useState<Message[]>([])
   const [editing,setEditing] = useState<Message | null>(null)
   const [editDraft,setEditDraft] = useState('')
@@ -117,10 +129,19 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
           const missing = [...new Set(visible.flatMap(message =>
             message.reply_to && !known.has(message.reply_to) ? [message.reply_to] : []
           ))]
-          if (missing.length) {
-            const {data:older} = await room().in('id',missing).abortSignal(next.signal)
-            if (!active || next.signal.aborted) return
-            for (const message of older ?? []) known.set(message.id,message)
+          const counts = []
+          for (let start = 0; start < items.length; start += 100) {
+            const ids = items.slice(start,start+100).map(message => message.id)
+            counts.push(client.rpc('team_chat_reaction_counts',{target_team:teamId,message_ids:ids}).abortSignal(next.signal))
+          }
+          const [{data:older},reactionResults] = await Promise.all([
+            missing.length ? room().in('id',missing).abortSignal(next.signal) : {data:[]},
+            Promise.all(counts),
+          ])
+          if (!active || next.signal.aborted) return
+          for (const message of older ?? []) known.set(message.id,message)
+          if (reactionResults.every(result => !result.error)) {
+            setReactions(reactionResults.flatMap(result => result.data ?? []))
           }
           if (!peopleResult.error) setProfiles(peopleResult.data ?? [])
           setPinned(currentPin)
@@ -135,6 +156,8 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     const channel = client.channel('team-chat:' + teamId + ':' + crypto.randomUUID())
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'team_chat_messages',filter:'team_id=eq.' + teamId},fetchMessages)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'team_chat_messages',filter:'team_id=eq.' + teamId},fetchMessages)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'team_chat_reactions',filter:'team_id=eq.' + teamId},fetchMessages)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'team_chat_reactions',filter:'team_id=eq.' + teamId},fetchMessages)
       .subscribe(status => {if (active && status === 'SUBSCRIBED') fetchMessages()})
     window.addEventListener('focus',fetchMessages)
     document.addEventListener('visibilitychange',fetchMessages)
@@ -152,6 +175,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
 
   function openHistory(match:SearchHit | null) {
     oldHeight.current = null
+    setReactionPicker(null)
     pendingJump.current = Boolean(match)
     followLatest.current = !match
     setLimit(batch)
@@ -191,6 +215,28 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     } catch {
       setPostError('Could not send the message. Your draft is still here.')
     } finally {setPosting(false)}
+  }
+
+  async function changeReaction(messageId:string, emoji:string, enabled:boolean) {
+    if (readOnly || reactionBusy) return
+    setReactionBusy(true)
+    setReactionError('')
+    try {
+      const {error} = await cloud!.rpc('set_team_chat_reaction',{
+        target_team:teamId,target_message:messageId,reaction_emoji:emoji,enabled
+      })
+      if (error) throw error
+      setReactions(current => {
+        const existing = current.find(item => item.message_id === messageId && item.emoji === emoji)
+        const total = (existing?.total ?? 0) + Number(enabled) - Number(existing?.mine ?? false)
+        const rest = current.filter(item => item !== existing)
+        return total > 0 ? [...rest,{message_id:messageId,emoji,total,mine:enabled}] : rest
+      })
+      setReactionPicker(null)
+      refresh.current()
+    } catch {
+      setReactionError('Could not update your reaction. Try again.')
+    } finally {setReactionBusy(false)}
   }
 
   async function saveEdit(event:FormEvent<HTMLFormElement>) {
@@ -303,6 +349,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       {pinnedParent && quote(pinnedParent)}
       <p>{pinned.body}</p>
     </section>}
+    {reactionError && <p role="alert" className="empty">{reactionError}</p>}
     {pinError && <p role="alert" className="empty">{pinError}</p>}
     <div ref={conversation} className="chat-conversation" onScroll={event => {
       const element = event.currentTarget
@@ -318,6 +365,8 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       {!!chronological.length && <ol className="chat-thread">{chronological.map((message,index) => {
         const identity = sender(message)
         const date = day(message.created_at)
+        const messageReactions = reactions.filter(reaction => reaction.message_id === message.id)
+        const pickerOpen = reactionPicker === message.id
         const parent = message.reply_to ? parents.get(message.reply_to) : undefined
         return <Fragment key={message.id}>
           {(index === 0 || day(chronological[index-1].created_at) !== date) && <li className="chat-day">{date}</li>}
@@ -335,7 +384,22 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
                 {parent && quote(parent)}
                 <p>{message.body}</p>
               </div>}
+              {!!messageReactions.length && <div className="chat-reactions" aria-label="Message reactions">
+                {reactionOptions.map(({emoji,label}) => {
+                  const reaction = messageReactions.find(item => item.emoji === emoji)
+                  if (!reaction) return null
+                  const countLabel = label + ', ' + reaction.total + (reaction.total === 1 ? ' reaction' : ' reactions')
+                  return readOnly
+                    ? <span className="chat-reaction" key={emoji} aria-label={countLabel}>{emoji} {reaction.total}</span>
+                    : <button className="chat-reaction" key={emoji} type="button" aria-label={countLabel}
+                        aria-pressed={reaction.mine} disabled={reactionBusy}
+                        onClick={() => void changeReaction(message.id,emoji,!reaction.mine)}>{emoji} {reaction.total}</button>
+                })}
+              </div>}
               <div className="chat-message-actions">
+                {!readOnly && <button className="text-button" type="button" aria-expanded={pickerOpen}
+                  aria-label="React to message" disabled={reactionBusy}
+                  onClick={() => setReactionPicker(pickerOpen ? null : message.id)}><SmilePlus size={15} /> React</button>}
                 {!readOnly && <button className="text-button" type="button" disabled={posting} onClick={() => {
                 setReplyTo(message)
                 composer.current?.focus()
@@ -349,6 +413,14 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
               {pinned?.id === message.id ? <span className="status">Pinned</span> : !readOnly && <button className="text-button chat-pin-action" type="button" disabled={pinBusy}
                 onClick={() => void changePin(message,true)}>{pinned ? 'Replace pin' : 'Pin message'}</button>}
               </div>
+              {pickerOpen && !readOnly && <div className="chat-reactions" role="group" aria-label="Choose a reaction">
+                {reactionOptions.map(({emoji,label}) => {
+                  const mine = messageReactions.some(item => item.emoji === emoji && item.mine)
+                  return <button className="chat-reaction" key={emoji} type="button" aria-label={label}
+                    title={label} aria-pressed={mine} disabled={reactionBusy}
+                    onClick={() => void changeReaction(message.id,emoji,!mine)}>{emoji}</button>
+                })}
+              </div>}
             </article>
           </li>
         </Fragment>

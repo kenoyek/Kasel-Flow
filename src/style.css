@@ -352,3 +352,7 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .chat-edited { color: var(--muted); font-size: 10px }
 .chat-edit-form { display: grid; gap: 6px; margin-top: 4px; text-align: start }
 .chat-edit-form textarea { width: min(340px, 100%); min-width: 0; resize: vertical }
+.chat-reactions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 }
+.chat-own .chat-reactions { justify-content: flex-end }
+.chat-reaction { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; font-size: 12px }
+button.chat-reaction:hover, .chat-reaction[aria-pressed=true] { border-color: var(--accent-text); color: var(--accent-text) }
