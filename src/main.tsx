@@ -63,7 +63,6 @@ function formatDate(date: string) {
 }
 
 function App({account, openAccount}: {account?: CloudControls; openAccount?: () => void}) {
-  const installation = useAppInstallation()
   const [data, setData] = useState(() => account?.initial.data ?? loadWorkspace())
   const [saved, setSaved] = useState(data)
   const [revision, setRevision] = useState(account?.initial.revision ?? 0)
@@ -92,7 +91,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [highlightReview,setHighlightReview] = useState<string>()
   const {mentions,markRead} = useTaskMentions(teamId)
   const [highlightComment,setHighlightComment] = useState<string>()
-  const {latest, connection, refreshing, refreshError, refresh} = useTeamUpdates(teamId)
+  const {latest, connection, refreshError, refresh} = useTeamUpdates(teamId)
   const newer = latest && latest.revision > revision ? latest : null
   const [search, setSearch] = useState('')
   const [overdueOnly, setOverdueOnly] = useState(false)
@@ -149,6 +148,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     try { localStorage.setItem(storageKey, JSON.stringify(data)) }
     catch { setStorageError(true) }
   }, [account, data])
+
+  const installation = useAppInstallation(dirty || cloudBusy || Boolean(modal) || templatesOpen || storageError)
 
   useEffect(() => {
     if (!dirty) return
@@ -257,7 +258,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     setNotifications(false)
     const task = data.tasks.find(item => item.id === mention.task_id)
     if (!task) {
-      setCloudMessage('This task is unavailable in the open workspace. Check for updates and try again.')
+      setCloudMessage('This task is unavailable in the open workspace. Wait for the workspace to sync and try again.')
       refresh()
       return
     }
@@ -269,7 +270,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     setNotifications(false)
     const task = data.tasks.find(item => item.id === notice.task_id)
     if (!task) {
-      setCloudMessage('This task is unavailable in the open workspace. Check for updates and try again.')
+      setCloudMessage('This task is unavailable in the open workspace. Wait for the workspace to sync and try again.')
       refresh()
       return
     }
@@ -417,11 +418,10 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         {team && <section className="panel cloud-bar" aria-label="Team synchronization">
           <span role="status">{refreshError ? 'Could not check the team workspace. Your open copy is still available.' :
             newer ? 'A newer team version is available. Export unsaved edits in Settings before replacing your copy.' :
-            connection === 'live' ? 'Live updates connected' : connection === 'connecting' ? 'Connecting live updates…' : 'Live updates unavailable. You can check manually.'}</span>
-          <button className="text-button" disabled={refreshing} onClick={refresh}>{refreshing ? 'Checking…' : 'Check for updates'}</button>
+            connection === 'live' ? 'Live updates connected' : connection === 'connecting' ? 'Connecting live updates…' : 'Live updates unavailable. Retrying automatically.'}</span>
           {newer && <button className="secondary" disabled={cloudBusy} onClick={loadNewerVersion}>Load newer version</button>}
         </section>}
-        {installation.waiting && page !== 'Settings' && <button className="text-button" onClick={() => navigate('Settings')}>An app update is available</button>}
+
         {storageError && <p role="alert">Browser storage is unavailable. Changes may be lost when you close this page.</p>}
         {query ? <section className="section"><h2>Search results</h2><div className="project-grid">{filteredProjects.map(renderProject)}</div><div className="panel task-list">{matchingTasks.length ? matchingTasks.map(renderTask) : <p className="empty">No matching tasks.</p>}</div></section> : <>
           {page === 'Overview' && <>

@@ -7,7 +7,6 @@ type Connection = 'connecting' | 'live' | 'unavailable'
 export function useTeamUpdates(teamId?: string) {
   const [latest, setLatest] = useState<CloudWorkspace | null>(null)
   const [connection, setConnection] = useState<Connection>('connecting')
-  const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState(false)
   const refresh = useRef<() => void>(() => {})
 
@@ -21,7 +20,6 @@ export function useTeamUpdates(teamId?: string) {
       request?.abort()
       const next = new AbortController()
       request = next
-      setRefreshing(true)
       setRefreshError(false)
       readTeam(teamId, next.signal).then(snapshot => {
         if (active && !next.signal.aborted) {
@@ -29,8 +27,6 @@ export function useTeamUpdates(teamId?: string) {
         }
       }).catch(() => {
         if (active && !next.signal.aborted) setRefreshError(true)
-      }).finally(() => {
-        if (active && !next.signal.aborted) setRefreshing(false)
       })
     }
     refresh.current = check
@@ -42,17 +38,23 @@ export function useTeamUpdates(teamId?: string) {
         setConnection(status === 'SUBSCRIBED' ? 'live' : 'unavailable')
         if (status === 'SUBSCRIBED') check()
       })
-    window.addEventListener('online', check)
+    const checkVisible = () => {if (!document.hidden && navigator.onLine) check()}
+    checkVisible()
+    const timer = window.setInterval(checkVisible, 30_000)
+    document.addEventListener('visibilitychange', checkVisible)
+    window.addEventListener('online', checkVisible)
     window.addEventListener('focus', check)
     return () => {
       active = false
       request?.abort()
       refresh.current = () => {}
-      window.removeEventListener('online', check)
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', checkVisible)
+      window.removeEventListener('online', checkVisible)
       window.removeEventListener('focus', check)
       void client.removeChannel(channel)
     }
   }, [teamId])
 
-  return {latest, connection, refreshing, refreshError, refresh: () => refresh.current()}
+  return {latest, connection, refreshError, refresh: () => refresh.current()}
 }

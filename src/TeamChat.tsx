@@ -321,7 +321,8 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   const pinnedSender = pinned ? sender(pinned) : null
   const pinnedParent = pinned?.reply_to ? parents.get(pinned.reply_to) : undefined
 
-  return <section className="panel team-chat" aria-label="Team chat">
+  return <section className="panel team-chat" aria-label="Team chat"
+    data-defer-app-update={Boolean(draft || editing || posting || removeTarget || removing || reactionBusy || pinBusy)}>
     <div className="panel-heading chat-room-header">
       <div className="chat-room-title"><span className="chat-room-icon"><MessagesSquare size={20} /></span>
         <div><h2>{teamName} chat</h2><p>Workspace members</p></div>

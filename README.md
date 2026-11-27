@@ -30,7 +30,7 @@ Production model access, scheduled background jobs, and Resend email delivery re
 
 ## Install the web app and export data
 
-Build with `npm run build`, serve `dist/` over HTTPS, and open **Settings**. After the first successful load and cache setup, the app can start offline and continue using the records saved in that browser. Use your browser’s install option or Add to Home Screen. When an update is ready, apply it from Settings to reload onto the new version. Local development uses Vite's live reload.
+Build with `npm run build`, serve `dist/` over HTTPS, and open **Settings**. After the first successful load and cache setup, the app can start offline and continue using the records saved in that browser. Use your browser’s install option or Add to Home Screen. The app checks for releases when you return to the tab and once a minute while it is open. A release applies automatically when your work is safe to reload. Local development uses Vite's live reload.
 
 **Export workspace JSON** downloads versioned data from the current browser. The file can contain contacts and financial records. It includes stored asset links, and linked files are downloaded separately through their providers.
 
@@ -60,7 +60,7 @@ After applying `202611260003_team_task_assignment.sql`, team owners and editors 
 
 ### Live team updates
 
-Apply `202611260004_team_live_updates.sql` to enable Supabase Realtime for team workspaces. A teammate's cloud save refreshes clean copies of the workspace. If you have unsaved edits, Kasel OS keeps them open and lets you export them before loading the newer version. Open forms are kept intact until you close or save them. Use **Check for updates** if Realtime is unavailable. Saves still use revision checks, and private workspace data stays out of the team subscription.
+Apply `202611260004_team_live_updates.sql` to enable Supabase Realtime for team workspaces. A teammate's cloud save refreshes clean copies of the workspace. If you have unsaved edits, Kasel OS keeps them open and lets you export them before loading the newer version. Open forms are kept intact until you close or save them. The app also checks for team changes automatically while the tab is visible, including when Realtime is unavailable. Saves still use revision checks, and private workspace data stays out of the team subscription.
 
 ### Team activity
 

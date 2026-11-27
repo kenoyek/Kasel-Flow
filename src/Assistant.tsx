@@ -64,7 +64,7 @@ export function Assistant({data, today, update, allowModel}: Props) {
     }
   }
 
-  return <div className="assistant-grid">
+  return <div className="assistant-grid" data-defer-app-update={Boolean(brief || drafts.length)}>
     <section className="panel dev-card assistant-panel">
       <h2><FileText size={17} /> Workspace reports</h2>
       <form onSubmit={runReport}>
