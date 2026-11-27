@@ -128,6 +128,12 @@ In a shared or restricted workspace, open **My Work** to see tasks assigned to y
 
 From **Projects**, **Tasks**, or **Board**, choose **Use a task template**. Select a destination project and a template, preview tasks and checklists, and deselect unwanted tasks. An optional schedule date sets deadlines relative to the kickoff. Tasks are added as unassigned To do items. In a shared workspace, use **Save to cloud** to share the new tasks.
 
+### Mention emails with Postmark
+
+Apply `202611260014_mention_email_notifications.sql`. The job sends one email per new mention to a current team member with a confirmed email. It leaves task and comment contents in Kasel OS. In-app mentions continue to work independently of delivery.
+
+Create a separate **Postmark Server API Token** for the transactional server and add it in Supabase **Vault** as `kasel_postmark_server_token`. The SMTP credentials used by Supabase Auth stay separate. The job uses the verified sender `hello@kasel.digital` and checks the queue every minute. It ignores invitations and other account messages, which still use Supabase Auth. Historical mentions are excluded. Unsent jobs expire after 24 hours. A Postmark rate-limit response is retried, and ambiguous delivery failures are recorded for investigation.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.
