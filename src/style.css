@@ -339,3 +339,13 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .chat-reply-preview { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px }
 .chat-reply-preview > div { flex: 1; min-width: 0 }
 .chat-reply-preview small { color: var(--muted) }
+.chat-header-actions, .chat-search form, .chat-history-bar { display: flex; align-items: center; gap: 8px }
+.chat-search, .chat-history-bar { padding: 10px 16px; border-bottom: 1px solid var(--line) }
+.chat-search input { flex: 1; min-width: 0 }
+.chat-search ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 220px; overflow-y: auto }
+.chat-search-match { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; width: 100%; padding: 8px; text-align: start; border-bottom: 1px solid var(--line) }
+.chat-search-match:hover, .chat-search-match:focus-visible { background: var(--hover) }
+.chat-search-match span { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.chat-search-match small, .chat-history-bar span { color: var(--muted); font-size: 12px }
+.chat-history-bar { justify-content: space-between; flex-wrap: wrap }
+.chat-search-target .chat-bubble { outline: 2px solid var(--accent-text); outline-offset: 2px }

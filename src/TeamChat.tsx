@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { MessagesSquare, Pin, RefreshCw, Reply, Send, X } from 'lucide-react'
+import { MessagesSquare, Pin, RefreshCw, Reply, Search, Send, X } from 'lucide-react'
 import { cloud } from './cloud-workspace'
 
 type MessageContent = {id:string; author_id?:string | null; author_label:string; body:string}
 type Message = MessageContent & {created_at:string; reply_to:string | null}
+type SearchHit = MessageContent & {created_at:string}
 type Profile = {user_id:string; label:string; display_name:string | null}
 const batch = 30
 const dayLabel = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'long'})
@@ -32,6 +33,13 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   const [posting,setPosting] = useState(false)
   const [loadError,setLoadError] = useState(false)
   const [postError,setPostError] = useState('')
+  const [searchOpen,setSearchOpen] = useState(false)
+  const [query,setQuery] = useState('')
+  const [searchRequest,setSearchRequest] = useState<{term:string} | null>(null)
+  const [matches,setMatches] = useState<SearchHit[]>([])
+  const [searchStatus,setSearchStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [anchor,setAnchor] = useState<SearchHit | null>(null)
+  const pendingJump = useRef(false)
   const [limit,setLimit] = useState(batch)
   const [hasMore,setHasMore] = useState(false)
   const refresh = useRef<() => void>(() => {})
@@ -42,13 +50,20 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   useLayoutEffect(() => {
     const element = conversation.current
     if (!element) return
-    if (oldHeight.current !== null) {
+    if (anchor && pendingJump.current) {
+      const target = document.getElementById('chat-message-' + anchor.id)
+      if (target) {
+        pendingJump.current = false
+        target.focus({preventScroll:true})
+        target.scrollIntoView({block:'center',inline:'nearest'})
+      }
+    } else if (oldHeight.current !== null) {
       element.scrollTop += element.scrollHeight - oldHeight.current
       oldHeight.current = null
     } else if (followLatest.current) {
       element.scrollTop = element.scrollHeight
     }
-  },[messages])
+  },[messages,anchor])
 
   function sender(message:MessageContent) {
     const own = message.author_id === userId || (!message.author_id && message.author_label === email)
@@ -56,6 +71,18 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     const name = (own ? displayName : profile?.display_name) || message.author_label
     return {own,name,email:message.author_label}
   }
+
+  useEffect(() => {
+    if (!cloud || !searchOpen || !searchRequest) return
+    const request = new AbortController()
+    void cloud.rpc('search_team_chat',{target_team:teamId,search_text:searchRequest.term})
+      .abortSignal(request.signal).then(({data,error}) => {
+        if (request.signal.aborted) return
+        setMatches(error ? [] : data ?? [])
+        setSearchStatus(error ? 'error' : 'done')
+      })
+    return () => request.abort()
+  },[teamId,searchOpen,searchRequest])
 
   useEffect(() => {
     if (!cloud) return
@@ -67,7 +94,11 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       const next = new AbortController()
       request = next
       const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at,reply_to').eq('team_id',teamId)
-      const recent = room().order('created_at',{ascending:false}).order('id',{ascending:false}).limit(limit+1).abortSignal(next.signal)
+      const history = room()
+      if (anchor) {
+        history.or(`created_at.lt.${anchor.created_at},and(created_at.eq.${anchor.created_at},id.lte.${anchor.id})`)
+      }
+      const recent = history.order('created_at',{ascending:false}).order('id',{ascending:false}).limit(limit+1).abortSignal(next.signal)
       const pin = room().not('pinned_at','is',null).abortSignal(next.signal).maybeSingle()
       const people = client.rpc('team_chat_profiles',{target_team:teamId}).abortSignal(next.signal)
       void Promise.all([recent,pin,people]).then(async ([{data,error},pinResult,peopleResult]) => {
@@ -91,7 +122,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
           setPinned(currentPin)
           setParents(known)
           setMessages(items)
-          if (items[0] && !document.hidden) void onRead(items[0].id)
+          if (!anchor && items[0] && !document.hidden) void onRead(items[0].id)
           setHasMore((data ?? []).length > limit)
         })
     }
@@ -113,7 +144,29 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       refresh.current = () => {}
       void client.removeChannel(channel)
     }
-  },[teamId,limit,onRead])
+  },[teamId,limit,onRead,anchor])
+
+  function openHistory(match:SearchHit | null) {
+    oldHeight.current = null
+    pendingJump.current = Boolean(match)
+    followLatest.current = !match
+    setLimit(batch)
+    setSearchOpen(false)
+    if (anchor?.id === match?.id) {
+      const target = match && document.getElementById('chat-message-' + match.id)
+      if (target) {
+        pendingJump.current = false
+        target.focus({preventScroll:true})
+        target.scrollIntoView({block:'center',inline:'nearest'})
+      }
+      return
+    }
+    setLoading(true)
+    setMessages([])
+    setHasMore(false)
+    setLoadError(false)
+    setAnchor(match)
+  }
 
   async function send(event:FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -129,7 +182,8 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       setDraft('')
       setReplyTo(null)
       followLatest.current = true
-      refresh.current()
+      if (anchor) openHistory(null)
+      else refresh.current()
     } catch {
       setPostError('Could not send the message. Your draft is still here.')
     } finally {setPosting(false)}
@@ -165,8 +219,46 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       <div className="chat-room-title"><span className="chat-room-icon"><MessagesSquare size={20} /></span>
         <div><h2>{teamName} chat</h2><p>Workspace members</p></div>
       </div>
+      <div className="chat-header-actions">
+      <button className="icon-button" type="button" aria-label="Search chat" aria-expanded={searchOpen} onClick={() => {
+        setSearchOpen(!searchOpen)
+        setSearchRequest(null)
+        setSearchStatus('idle')
+      }}><Search size={17} /></button>
       <button className="icon-button" type="button" aria-label="Refresh chat" title="Refresh chat" onClick={() => refresh.current()}><RefreshCw size={17} /></button>
+      </div>
     </div>
+    {searchOpen && <section className="chat-search" aria-label="Search messages">
+      <form onSubmit={event => {
+        event.preventDefault()
+        const term = query.trim()
+        if (term.length < 2 || searchStatus === 'loading') return
+        setSearchStatus('loading')
+        setSearchRequest({term})
+      }}>
+        <input type="search" aria-label="Search message text" placeholder="Search messages…" autoFocus value={query}
+          minLength={2} maxLength={120} onChange={event => {
+            setQuery(event.target.value)
+            setSearchRequest(null)
+            setSearchStatus('idle')
+          }} />
+        <button className="secondary" disabled={query.trim().length < 2 || searchStatus === 'loading'}>Search</button>
+      </form>
+      {searchStatus === 'loading' && <p role="status">Searching…</p>}
+      {searchStatus === 'error' && <p role="alert">Could not search messages. Try again.</p>}
+      {searchStatus === 'done' && (matches.length ? <>
+        <ul>{matches.slice(0,25).map(match => <li key={match.id}>
+          <button type="button" className="chat-search-match" onClick={() => openHistory(match)}>
+            <strong>{sender(match).name}</strong><small>{day(match.created_at)}</small><span>{match.body}</span>
+          </button>
+        </li>)}</ul>
+        {matches.length > 25 && <p>Showing the 25 most recent matches. Refine your search to find older results.</p>}
+      </> : <p role="status">No matching messages.</p>)}
+    </section>}
+    {anchor && <div className="chat-history-bar">
+      <span>Chat history · {day(anchor.created_at)}</span>
+      <button type="button" className="text-button" onClick={() => openHistory(null)}>Back to latest</button>
+    </div>}
     {pinned && pinnedSender && <section className="chat-pinned" aria-label="Pinned message">
       <div className="dev-card-heading"><h3><Pin size={15} /> Pinned message</h3>
         {!readOnly && <button className="text-button" type="button" disabled={pinBusy} onClick={() => void changePin(pinned,false)}>Unpin</button>}
@@ -193,7 +285,8 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
         const parent = message.reply_to ? parents.get(message.reply_to) : undefined
         return <Fragment key={message.id}>
           {(index === 0 || day(chronological[index-1].created_at) !== date) && <li className="chat-day">{date}</li>}
-          <li className={'chat-line' + (identity.own ? ' chat-own' : '')}>
+          <li id={'chat-message-' + message.id} tabIndex={-1}
+            className={'chat-line' + (identity.own ? ' chat-own' : '') + (anchor?.id === message.id ? ' chat-search-target' : '')}>
             <span className="chat-avatar" aria-hidden="true">{initials(identity.name)}</span>
             <article className="chat-message">
               <div className="chat-message-header"><strong>{identity.name}</strong>
