@@ -288,3 +288,10 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .my-work-filters span { margin-left: 4px }
 .inbox-row { grid-template-columns: auto minmax(0, 1fr) }
 @media (max-width: 1000px) { .my-work { grid-template-columns: minmax(0, 1fr) } }
+.template-launch { margin-bottom: 12px }
+.template-preview { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px }
+.template-preview h3 { font-size: 14px }
+.template-task { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 12px; overflow-wrap: anywhere }
+.template-task label { display: flex; align-items: center; gap: 6px; margin: 0 0 4px }
+.template-task small { display: block; color: var(--muted); margin-left: 24px }
+.template-task ul { margin: 4px 0 2px 24px; padding-left: 14px; color: var(--muted) }

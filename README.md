@@ -124,6 +124,10 @@ Open **Timeline** and use the existing project, status, priority, or assignee fi
 
 In a shared or restricted workspace, open **My Work** to see tasks assigned to your account. Filter for open, overdue, blocked, or completed work. The same screen shows pending deliverable reviews and unread mentions and opens the relevant task directly.
 
+## Task templates
+
+From **Projects**, **Tasks**, or **Board**, choose **Use a task template**. Select a destination project and a template, preview tasks and checklists, and deselect unwanted tasks. An optional schedule date sets deadlines relative to the kickoff. Tasks are added as unassigned To do items. In a shared workspace, use **Save to cloud** to share the new tasks.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

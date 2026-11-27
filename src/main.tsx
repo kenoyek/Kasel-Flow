@@ -16,6 +16,7 @@ import { TaskDiscussion, useTaskMentions, type TaskMention } from './TaskDiscuss
 import { TaskDependencies } from './TaskDependencies'
 import { blockedTask, dependsOnTask, taskDependencies } from './task-dependencies'
 import { TaskChecklist, checklistProgress } from './TaskChecklist'
+import { TaskTemplates } from './TaskTemplates'
 import { TaskTimeline, taskDateLabel } from './TaskTimeline'
 import { TaskBoard } from './TaskBoard'
 import { TeamActivity } from './TeamActivity'
@@ -91,6 +92,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const newer = latest && latest.revision > revision ? latest : null
   const [search, setSearch] = useState('')
   const [overdueOnly, setOverdueOnly] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const [modal, setModal] = useState<'project' | 'task' | null>(null)
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
   const [taskProject, setTaskProject] = useState('')
@@ -152,13 +154,13 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   }, [dirty])
 
   useEffect(() => {
-    if (!newer || dirty || modal || cloudBusy) return
+    if (!newer || dirty || modal || templatesOpen || cloudBusy) return
     setData(newer.data)
     setSaved(newer.data)
     setRevision(newer.revision)
     setCloudMessage('A newer team version was loaded.')
     setRosterAttempt(value => value + 1)
-  }, [newer, dirty, modal, cloudBusy])
+  }, [newer, dirty, modal, templatesOpen, cloudBusy])
 
   function loadNewerVersion() {
     if (!newer || cloudBusy || (dirty && !window.confirm('Load the newer team version and discard your unsaved edits?'))) return
@@ -393,6 +395,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       <main>
         <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Timeline:'Plan work by start date and deadline.','My Work':'Find your assignments, review requests, and mentions.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
         {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && page !== 'My Work' && (!restrictedProject || taskPage) && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
+        {!readOnly && (page === 'Projects' || page === 'Tasks' || page === 'Board') && projects.length > 0 &&
+          <button className="secondary template-launch" onClick={() => setTemplatesOpen(true)}><Plus size={16} /> Use a task template</button>}
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
           {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy || Boolean(newer)} onClick={() => void saveCloud()}>Save to cloud</button>}
@@ -492,6 +496,12 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         </>}
       </main>
     </div>
+    {templatesOpen && !readOnly && <TaskTemplates projects={projects} initialProject={projectFilter}
+      onClose={() => setTemplatesOpen(false)} onApply={(projectId, additions) => {
+        setData(previous => ({...previous,tasks:[...previous.tasks,...additions]}))
+        setTemplatesOpen(false)
+        navigate('Tasks',projectId)
+      }} />}
     {readOnly && modal === 'task' && editingTask && <dialog ref={element => {if (element && !element.open) element.showModal()}} onCancel={() => setModal(null)} aria-labelledby="task-details-title">
       <div className="dialog-heading"><h2 id="task-details-title">{editingTask.title}</h2>
         <button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
