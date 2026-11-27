@@ -3,7 +3,7 @@ import { MessagesSquare, Pin, RefreshCw, Reply, Search, Send, X } from 'lucide-r
 import { cloud } from './cloud-workspace'
 
 type MessageContent = {id:string; author_id?:string | null; author_label:string; body:string}
-type Message = MessageContent & {created_at:string; reply_to:string | null}
+type Message = MessageContent & {created_at:string; reply_to:string | null; edited_at:string | null}
 type SearchHit = MessageContent & {created_at:string}
 type Profile = {user_id:string; label:string; display_name:string | null}
 const batch = 30
@@ -26,6 +26,10 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   const [parents,setParents] = useState(new Map<string,MessageContent>())
   const [profiles,setProfiles] = useState<Profile[]>([])
   const [messages,setMessages] = useState<Message[]>([])
+  const [editing,setEditing] = useState<Message | null>(null)
+  const [editDraft,setEditDraft] = useState('')
+  const [editSaving,setEditSaving] = useState(false)
+  const [editError,setEditError] = useState('')
   const [replyTo,setReplyTo] = useState<MessageContent | null>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
   const [draft,setDraft] = useState('')
@@ -93,7 +97,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       request?.abort()
       const next = new AbortController()
       request = next
-      const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at,reply_to').eq('team_id',teamId)
+      const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at,reply_to,edited_at').eq('team_id',teamId)
       const history = room()
       if (anchor) {
         history.or(`created_at.lt.${anchor.created_at},and(created_at.eq.${anchor.created_at},id.lte.${anchor.id})`)
@@ -189,6 +193,28 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     } finally {setPosting(false)}
   }
 
+  async function saveEdit(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (readOnly || !editing || !editDraft.trim() || editSaving) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const {data,error} = await cloud!.rpc('edit_team_chat_message',{
+        target_team:teamId,target_message:editing.id,message_body:editDraft,expected_edited_at:editing.edited_at ?? null
+      })
+      if (error) throw error
+      if (!data) {
+        setEditError('This message changed or can no longer be edited. Copy your draft before canceling.')
+        refresh.current()
+        return
+      }
+      setEditing(null)
+      refresh.current()
+    } catch {
+      setEditError('Could not save the edit. Your draft is still here.')
+    } finally {setEditSaving(false)}
+  }
+
   async function changePin(message: Message, makePinned: boolean) {
     if (readOnly || pinBusy) return
     setPinBusy(true)
@@ -209,6 +235,16 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       <span>{message.body}</span>
     </blockquote>
   }
+
+  const editForm = editing && !readOnly && <form className="chat-edit-form" onSubmit={saveEdit}>
+    <textarea aria-label="Edit message" autoFocus rows={3} maxLength={4000} disabled={editSaving}
+      value={editDraft} onChange={event => setEditDraft(event.target.value)} />
+    <div className="chat-message-actions">
+      <button className="secondary" type="button" disabled={editSaving} onClick={() => setEditing(null)}>Cancel edit</button>
+      <button className="primary" disabled={editSaving || !editDraft.trim() || editDraft.trim() === editing.body}>{editSaving ? 'Saving…' : 'Save edit'}</button>
+    </div>
+    {editError && <p role="alert">{editError}</p>}
+  </form>
 
   const chronological = [...messages].reverse()
   const pinnedSender = pinned ? sender(pinned) : null
@@ -263,7 +299,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       <div className="dev-card-heading"><h3><Pin size={15} /> Pinned message</h3>
         {!readOnly && <button className="text-button" type="button" disabled={pinBusy} onClick={() => void changePin(pinned,false)}>Unpin</button>}
       </div>
-      <strong>{pinnedSender.name}</strong>
+      <strong>{pinnedSender.name}</strong> {pinned.edited_at && <small className="chat-edited">Edited</small>}
       {pinnedParent && quote(pinnedParent)}
       <p>{pinned.body}</p>
     </section>}
@@ -292,17 +328,24 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
               <div className="chat-message-header"><strong>{identity.name}</strong>
                 {identity.own && <span className="chat-you">You</span>}
                 <time dateTime={message.created_at}>{timeLabel.format(new Date(message.created_at))} WAT</time>
+                {message.edited_at && <span className="chat-edited">Edited</span>}
               </div>
               {identity.name !== identity.email && <small className="chat-email">{identity.email}</small>}
-              <div className="chat-bubble">
+              {editing?.id === message.id && !readOnly ? editForm : <div className="chat-bubble">
                 {parent && quote(parent)}
                 <p>{message.body}</p>
-              </div>
+              </div>}
               <div className="chat-message-actions">
                 {!readOnly && <button className="text-button" type="button" disabled={posting} onClick={() => {
                 setReplyTo(message)
                 composer.current?.focus()
               }}><Reply size={14} /> Reply</button>}
+                {!readOnly && message.author_id === userId && !editing && <button className="text-button" type="button"
+                  onClick={() => {
+                    setEditing(message)
+                    setEditDraft(message.body)
+                    setEditError('')
+                  }}>Edit message</button>}
               {pinned?.id === message.id ? <span className="status">Pinned</span> : !readOnly && <button className="text-button chat-pin-action" type="button" disabled={pinBusy}
                 onClick={() => void changePin(message,true)}>{pinned ? 'Replace pin' : 'Pin message'}</button>}
               </div>
@@ -311,6 +354,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
         </Fragment>
       })}</ol>}
     </div>
+    {editing && !readOnly && !messages.some(message => message.id === editing.id) && <div className="chat-compose">{editForm}</div>}
     {!readOnly && <form className="chat-compose" onSubmit={send}>
       {replyTo && <div className="chat-reply-preview">
         <div><small>Replying to</small>{quote(replyTo)}</div>

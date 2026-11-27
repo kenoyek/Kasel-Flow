@@ -349,3 +349,6 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .chat-search-match small, .chat-history-bar span { color: var(--muted); font-size: 12px }
 .chat-history-bar { justify-content: space-between; flex-wrap: wrap }
 .chat-search-target .chat-bubble { outline: 2px solid var(--accent-text); outline-offset: 2px }
+.chat-edited { color: var(--muted); font-size: 10px }
+.chat-edit-form { display: grid; gap: 6px; margin-top: 4px; text-align: start }
+.chat-edit-form textarea { width: min(340px, 100%); min-width: 0; resize: vertical }
