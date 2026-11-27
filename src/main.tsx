@@ -12,6 +12,8 @@ import { Creative } from './Creative'
 import { Development } from './Development'
 import { TaskReviews, useReviewInbox, type ReviewNotice } from './TaskReviews'
 import { TaskDiscussion, useTaskMentions, type TaskMention } from './TaskDiscussion'
+import { TaskDependencies } from './TaskDependencies'
+import { blockedTask, dependsOnTask, taskDependencies } from './task-dependencies'
 import { TaskChecklist, checklistProgress } from './TaskChecklist'
 import { TaskBoard } from './TaskBoard'
 import { TeamActivity } from './TeamActivity'
@@ -67,6 +69,9 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [page, setPage] = useState('Overview')
   const [projectFilter, setProjectFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [blockedOnly, setBlockedOnly] = useState(false)
+  const [dependsOn, setDependsOn] = useState<string[]>([])
+  const [dependencyError,setDependencyError] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [openOnly, setOpenOnly] = useState(false)
@@ -192,6 +197,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     catch { /* Theme still applies for this session. */ }
   }, [dark])
 
+  const tasksById = new Map(data.tasks.map(task => [task.id,task]))
   const taskPage = ['Tasks','Calendar','Board'].includes(page)
   const department = departments.includes(page) ? page : ''
   const projects = department ? data.projects.filter(project => project.department === department) : data.projects
@@ -209,7 +215,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       ...(task.checklist ?? []).map(item => item.title)].join(' ').toLowerCase().includes(query))
   const filteredTasks = (overdueOnly ? overdue : tasks).filter(task =>
     (!projectFilter || task.project === projectFilter) && (!statusFilter || task.status === statusFilter) &&
-    (!priorityFilter || (task.priority ?? 'Normal') === priorityFilter) && (!assigneeFilter || (task.assignee ?? unassigned) === assigneeFilter) && (!openOnly || task.status !== 'Done'))
+    (!priorityFilter || (task.priority ?? 'Normal') === priorityFilter) && (!assigneeFilter || (task.assignee ?? unassigned) === assigneeFilter) && (!openOnly || task.status !== 'Done') && (!blockedOnly || blockedTask(task,tasksById)))
 
   function navigate(next: string, project = '', status = '', onlyOverdue = false) {
     setPage(next)
@@ -217,6 +223,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     setStatusFilter(status)
     setAssigneeFilter('')
     setPriorityFilter('')
+    setBlockedOnly(false)
     setOpenOnly(false)
     setOverdueOnly(onlyOverdue)
     setSearch('')
@@ -228,6 +235,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     if (readOnly && !task) return
     setHighlightReview(review)
     setHighlightComment(comment)
+    setDependsOn(task?.dependsOn ?? [])
+    setDependencyError('')
     setChecklist(task?.checklist ?? [])
     setTaskProject(task?.project ?? (projectFilter || projects[0]?.id || ''))
     setEditingTask(task)
@@ -294,7 +303,18 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     } else {
       const sprint = data.development.find(record => record.kind === 'sprint' && record.id === value('sprint') && record.project === value('project'))
       const item: Task = {...editingTask,id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,priority:value('priority') as Priority,description:value('description') || undefined,checklist:checklist.length ? checklist : undefined,due:value('due'),sprint:sprint?.id,assignee:roster ? value('assignee') || undefined : editingTask?.assignee}
-      setData(previous => ({...previous,tasks:editingTask ? previous.tasks.map(task => task.id === item.id ? item : task) : [...previous.tasks,item]}))
+      const dependencies = taskDependencies({...item,dependsOn},tasksById)
+      if (dependencies.some(dependency => dependsOnTask(dependency,item.id,tasksById))) {
+        setDependencyError('Remove the circular dependency before saving.')
+        return
+      }
+      item.dependsOn = dependencies.length ? dependencies.map(dependency => dependency.id) : undefined
+      setData(previous => ({...previous,tasks:editingTask ? previous.tasks.map(task => {
+        if (task.id === item.id) return item
+        if (task.project === item.project || !task.dependsOn?.includes(item.id)) return task
+        const remaining = task.dependsOn.filter(id => id !== item.id)
+        return {...task,dependsOn:remaining.length ? remaining : undefined}
+      }) : [...previous.tasks,item]}))
       if (!editingTask && page !== 'Development' && page !== 'Board') navigate('Tasks', item.project)
     }
     setModal(null)
@@ -314,7 +334,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   function renderTask(task: Task) {
     return <button className="task-row" key={task.id} onClick={() => openTask(task)}>
       {task.status === 'Done' ? <CheckCircle2 className="task-check done" /> : <Circle className="task-check" />}
-      <span className="task-name"><strong>{task.title}</strong><small>{taskContext(task)}{task.priority && task.priority !== 'Normal' && ' · ' + task.priority}</small></span>
+      <span className="task-name"><strong>{task.title}</strong><small>{taskContext(task)}{task.priority && task.priority !== 'Normal' && ' · ' + task.priority}{blockedTask(task,tasksById) && ' · Blocked'}</small></span>
       <span className={'status ' + task.status.toLowerCase().replace(' ', '-')}>{task.status}</span>
       <span className="due">{formatDate(task.due)}</span>
     </button>
@@ -444,11 +464,13 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <option value="">All assignees</option><option value={unassigned}>Unassigned</option>
               {roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
             </select></label>}
+            <label className="blocked-filter"><input type="checkbox" checked={blockedOnly} onChange={event => setBlockedOnly(event.target.checked)} /> Blocked only</label>
             {openOnly && <button className="text-button" onClick={() => setOpenOnly(false)}>Show completed tasks</button>}
             <span>{filteredTasks.length} tasks</span>{overdueOnly && <button className="text-button" onClick={() => setOverdueOnly(false)}>Clear overdue filter <X size={14} /></button>}</div>
             {page === 'Board' ? <TaskBoard tasks={filteredTasks} readOnly={readOnly} onEdit={openTask} details={task => <>
               <p className="dev-muted">{taskContext(task)}</p><p className="dev-muted">{formatDate(task.due)}</p>
               {!!task.checklist?.length && <p className="dev-muted">{checklistProgress(task.checklist)}</p>}
+              {blockedTask(task,tasksById) && <p className="dev-muted"><span className="status in-review">Blocked</span></p>}
             </>} onMove={(id,status) => {
               if (!readOnly) setData(previous => ({...previous,tasks:previous.tasks.map(task => task.id === id ? {...task,status} : task)}))
             }} /> : <div className="panel task-list">{(page === 'Calendar' ? [...filteredTasks].sort((first,second) => (first.due || '9999').localeCompare(second.due || '9999')) : filteredTasks).map(renderTask)}{!filteredTasks.length && <p className="empty">No tasks match these filters.</p>}</div>}
@@ -461,6 +483,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         <button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
       <p className="dev-muted">{[taskContext(editingTask),editingTask.status,editingTask.priority ?? 'Normal',formatDate(editingTask.due)].filter(Boolean).join(' · ')}</p>
       {editingTask.description && <p className="task-description">{editingTask.description}</p>}
+      <TaskDependencies tasks={tasksById} project={editingTask.project} task={editingTask} selected={[]} />
       <TaskChecklist items={editingTask.checklist ?? []} />
       {taskCollaboration(editingTask)}
     </dialog>}
@@ -468,11 +491,20 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       <form onSubmit={saveItem}>
         <div className="dialog-heading"><h2 id="editor-title">{(modal === 'task' ? editingTask : editingProject) ? 'Edit' : 'New'} {modal}</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
         <label>{modal === 'project' ? 'Project name' : 'Task title'}<input name="name" required maxLength={100} defaultValue={modal === 'project' ? editingProject?.name : editingTask?.title} autoFocus /></label>
-        {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => setTaskProject(event.target.value)}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Priority<select name="priority" defaultValue={editingTask?.priority ?? 'Normal'}>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
+        {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => {
+          const id = event.target.value
+          setTaskProject(id)
+          setDependencyError('')
+        }}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Priority<select name="priority" defaultValue={editingTask?.priority ?? 'Normal'}>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
           <option value="">Unassigned</option>{roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
         </select></label>}{!team && data.projects.some(project => project.id === taskProject && project.department === 'Development') && <label>Sprint<select name="sprint" key={taskProject} defaultValue={editingTask?.project === taskProject ? editingTask.sprint ?? '' : ''}><option value="">Backlog</option>{data.development.filter(record => record.kind === 'sprint' && record.project === taskProject).map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</select></label>}</>}
         {modal === 'task' && <>
           <label>Task description<textarea name="description" rows={4} maxLength={4000} defaultValue={editingTask?.description} /></label>
+          <TaskDependencies tasks={tasksById} project={taskProject} task={editingTask} selected={dependsOn} onChange={ids => {
+            setDependsOn(ids)
+            setDependencyError('')
+          }} />
+          {dependencyError && <p role="alert" className="dev-muted">{dependencyError}</p>}
           <TaskChecklist items={checklist} onChange={setChecklist} />
         </>}
         <div className="dialog-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>Cancel</button><button className="primary" type="submit">Save {modal}</button></div>
