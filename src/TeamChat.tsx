@@ -25,8 +25,8 @@ function initials(value:string) {
   return (words.length > 1 ? words.slice(0,2).map(word => Array.from(word)[0]).join('') : Array.from(base).slice(0,2).join('')).toLocaleUpperCase() || '?'
 }
 
-export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRead}: {
-  teamId:string;teamName:string;userId:string;email:string;displayName:string;readOnly:boolean;onRead:(id:string)=>Promise<void>
+export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRead,onCreateTask}: {
+  teamId:string;teamName:string;userId:string;email:string;displayName:string;readOnly:boolean;onRead:(id:string)=>Promise<void>;onCreateTask?:(body:string)=>void
 }) {
   const [pinned,setPinned] = useState<Message | null>(null)
   const [pinBusy,setPinBusy] = useState(false)
@@ -432,6 +432,8 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
                 setReplyTo(message)
                 composer.current?.focus()
               }}><Reply size={14} /> Reply</button>}
+                {!readOnly && onCreateTask && <button className="text-button" type="button"
+                  onClick={() => onCreateTask(message.body)}>Create task</button>}
                 {!readOnly && message.author_id === userId && !editing && <button className="text-button" type="button"
                   onClick={() => {
                     setEditing(message)

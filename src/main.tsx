@@ -99,6 +99,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [modal, setModal] = useState<'project' | 'task' | null>(null)
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
   const [taskProject, setTaskProject] = useState('')
+  const [taskFromChat, setTaskFromChat] = useState<{title:string;description:string} | null>(null)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [notifications, setNotifications] = useState(false)
@@ -251,7 +252,16 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     setChecklist(task?.checklist ?? [])
     setTaskProject(task?.project ?? (projectFilter || projects[0]?.id || ''))
     setEditingTask(task)
+    setTaskFromChat(null)
     setModal('task')
+  }
+
+  function createTaskFromChat(body: string) {
+    if (readOnly || !data.projects.length) return
+    const firstLine = body.trim().split(/\r?\n/, 1)[0]
+    const title = firstLine.slice(0,100).replace(/[\uD800-\uDBFF]$/, '').trimEnd()
+    openTask()
+    setTaskFromChat({title,description:body})
   }
 
   function openMention(mention: TaskMention) {
@@ -444,7 +454,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
             </div>
           </>}
           {page === 'Chat' && team && account && <TeamChat key={team.id} teamId={team.id} teamName={team.name} userId={account.owner}
-            email={account.email} displayName={account.displayName} readOnly={readOnly} onRead={markChatRead} />}
+            email={account.email} displayName={account.displayName} readOnly={readOnly} onRead={markChatRead}
+            onCreateTask={!readOnly && data.projects.length ? createTaskFromChat : undefined} />}
           {page === 'My Work' && team && account && <MyWork owner={account.owner} tasks={tasksById} today={today}
             mentions={mentions} reviews={reviewNotices} renderTask={renderTask} openMention={openMention} openReview={openReviewNotice} />}
           {page === 'Activity' && teamId && <TeamActivity teamId={teamId} revision={revision} />}
@@ -523,8 +534,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     </dialog>}
     {modal && !readOnly && <dialog ref={element => {if (element && !element.open) element.showModal()}} onCancel={() => setModal(null)} aria-labelledby="editor-title">
       <form onSubmit={saveItem}>
-        <div className="dialog-heading"><h2 id="editor-title">{(modal === 'task' ? editingTask : editingProject) ? 'Edit' : 'New'} {modal}</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
-        <label>{modal === 'project' ? 'Project name' : 'Task title'}<input name="name" required maxLength={100} defaultValue={modal === 'project' ? editingProject?.name : editingTask?.title} autoFocus /></label>
+        <div className="dialog-heading"><h2 id="editor-title">{modal === 'task' && taskFromChat ? 'Create task from message' : ((modal === 'task' ? editingTask : editingProject) ? 'Edit ' : 'New ') + modal}</h2><button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
+        <label>{modal === 'project' ? 'Project name' : 'Task title'}<input name="name" required maxLength={100} defaultValue={modal === 'project' ? editingProject?.name : editingTask?.title ?? taskFromChat?.title} autoFocus /></label>
         {modal === 'project' ? <><label>Department<select name="department" defaultValue={editingProject?.department ?? (department || departments[0])}>{departments.map(name => <option key={name}>{name}</option>)}</select></label><label>Description<textarea name="description" maxLength={250} defaultValue={editingProject?.description} /></label>{(page === 'Development' || editingProject?.repository || editingProject?.department === 'Development') && <label>GitHub repository URL<input type="url" name="repository" placeholder="https://github.com/owner/repository" defaultValue={editingProject?.repository} onChange={event => event.currentTarget.setCustomValidity('')} /></label>}</> : <><label>Project<select name="project" required value={taskProject} onChange={event => {
           const id = event.target.value
           setTaskProject(id)
@@ -536,7 +547,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
           <option value="">Unassigned</option>{roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
         </select></label>}{!team && data.projects.some(project => project.id === taskProject && project.department === 'Development') && <label>Sprint<select name="sprint" key={taskProject} defaultValue={editingTask?.project === taskProject ? editingTask.sprint ?? '' : ''}><option value="">Backlog</option>{data.development.filter(record => record.kind === 'sprint' && record.project === taskProject).map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</select></label>}</>}
         {modal === 'task' && <>
-          <label>Task description<textarea name="description" rows={4} maxLength={4000} defaultValue={editingTask?.description} /></label>
+          <label>Task description<textarea name="description" rows={4} maxLength={4000} defaultValue={editingTask?.description ?? taskFromChat?.description} /></label>
           <TaskDependencies tasks={tasksById} project={taskProject} task={editingTask} selected={dependsOn} onChange={ids => {
             setDependsOn(ids)
             setDependencyError('')
