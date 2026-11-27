@@ -356,3 +356,7 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .chat-own .chat-reactions { justify-content: flex-end }
 .chat-reaction { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; font-size: 12px }
 button.chat-reaction:hover, .chat-reaction[aria-pressed=true] { border-color: var(--accent-text); color: var(--accent-text) }
+.chat-removed { color: var(--muted); font-style: italic }
+.chat-remove-confirm { margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; text-align: start }
+.chat-remove-confirm p { margin: 0 0 8px; font-size: 12px }
+.chat-remove-button { color: var(--danger, #b42318) }

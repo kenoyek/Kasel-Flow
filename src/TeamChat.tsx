@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent 
 import { MessagesSquare, Pin, RefreshCw, Reply, Search, Send, SmilePlus, X } from 'lucide-react'
 import { cloud } from './cloud-workspace'
 
-type MessageContent = {id:string; author_id?:string | null; author_label:string; body:string}
+type MessageContent = {id:string; author_id?:string | null; author_label:string; body:string; removed_at?:string | null}
 type Message = MessageContent & {created_at:string; reply_to:string | null; edited_at:string | null}
 type SearchHit = MessageContent & {created_at:string}
 type Profile = {user_id:string; label:string; display_name:string | null}
@@ -38,6 +38,9 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   const [reactionBusy,setReactionBusy] = useState(false)
   const [reactionError,setReactionError] = useState('')
   const [messages,setMessages] = useState<Message[]>([])
+  const [removeTarget,setRemoveTarget] = useState<string | null>(null)
+  const [removing,setRemoving] = useState(false)
+  const [removeError,setRemoveError] = useState('')
   const [editing,setEditing] = useState<Message | null>(null)
   const [editDraft,setEditDraft] = useState('')
   const [editSaving,setEditSaving] = useState(false)
@@ -109,7 +112,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       request?.abort()
       const next = new AbortController()
       request = next
-      const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at,reply_to,edited_at').eq('team_id',teamId)
+      const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at,reply_to,edited_at,removed_at').eq('team_id',teamId)
       const history = room()
       if (anchor) {
         history.or(`created_at.lt.${anchor.created_at},and(created_at.eq.${anchor.created_at},id.lte.${anchor.id})`)
@@ -155,7 +158,10 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     fetchMessages()
     const channel = client.channel('team-chat:' + teamId + ':' + crypto.randomUUID())
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'team_chat_messages',filter:'team_id=eq.' + teamId},fetchMessages)
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'team_chat_messages',filter:'team_id=eq.' + teamId},fetchMessages)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'team_chat_messages',filter:'team_id=eq.' + teamId},() => {
+        setSearchRequest(current => current && {...current})
+        fetchMessages()
+      })
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'team_chat_reactions',filter:'team_id=eq.' + teamId},fetchMessages)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'team_chat_reactions',filter:'team_id=eq.' + teamId},fetchMessages)
       .subscribe(status => {if (active && status === 'SUBSCRIBED') fetchMessages()})
@@ -239,6 +245,24 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     } finally {setReactionBusy(false)}
   }
 
+  async function removeMessage(messageId:string) {
+    if (readOnly || removing) return
+    setRemoving(true)
+    setRemoveError('')
+    try {
+      const {data,error} = await cloud!.rpc('remove_team_chat_message',{target_team:teamId,target_message:messageId})
+      if (error || !data) throw error ?? new Error('Message is unavailable')
+      setRemoveTarget(null)
+      setMatches(current => current.filter(match => match.id !== messageId))
+      setEditing(current => current?.id === messageId ? null : current)
+      setReactionPicker(current => current === messageId ? null : current)
+      setReplyTo(current => current?.id === messageId ? null : current)
+      refresh.current()
+    } catch {
+      setRemoveError('Could not remove this message. Refresh chat or try again.')
+    } finally {setRemoving(false)}
+  }
+
   async function saveEdit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (readOnly || !editing || !editDraft.trim() || editSaving) return
@@ -276,6 +300,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   }
 
   function quote(message:MessageContent) {
+    if (message.removed_at) return <blockquote className="chat-quote">Message removed</blockquote>
     return <blockquote className="chat-quote">
       <strong>{sender(message).name}</strong>
       <span>{message.body}</span>
@@ -349,6 +374,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       {pinnedParent && quote(pinnedParent)}
       <p>{pinned.body}</p>
     </section>}
+    {removeError && <p role="alert" className="empty">{removeError}</p>}
     {reactionError && <p role="alert" className="empty">{reactionError}</p>}
     {pinError && <p role="alert" className="empty">{pinError}</p>}
     <div ref={conversation} className="chat-conversation" onScroll={event => {
@@ -380,6 +406,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
                 {message.edited_at && <span className="chat-edited">Edited</span>}
               </div>
               {identity.name !== identity.email && <small className="chat-email">{identity.email}</small>}
+              {message.removed_at ? <p className="chat-bubble chat-removed">Message removed</p> : <>
               {editing?.id === message.id && !readOnly ? editForm : <div className="chat-bubble">
                 {parent && quote(parent)}
                 <p>{message.body}</p>
@@ -410,9 +437,25 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
                     setEditDraft(message.body)
                     setEditError('')
                   }}>Edit message</button>}
+                {!readOnly && message.author_id === userId && editing?.id !== message.id && <button className="text-button"
+                  type="button" disabled={removing} onClick={() => {
+                    setRemoveError('')
+                    setRemoveTarget(message.id)
+                  }}>Remove message</button>}
               {pinned?.id === message.id ? <span className="status">Pinned</span> : !readOnly && <button className="text-button chat-pin-action" type="button" disabled={pinBusy}
                 onClick={() => void changePin(message,true)}>{pinned ? 'Replace pin' : 'Pin message'}</button>}
               </div>
+              {removeTarget === message.id && !readOnly && <div className="chat-remove-confirm" role="group" aria-label="Confirm message removal">
+                <p>Remove this message for everyone?</p>
+                <div className="chat-message-actions">
+                  <button className="secondary" type="button" disabled={removing} onClick={() => {
+                    setRemoveTarget(null)
+                    setRemoveError('')
+                  }}>Cancel</button>
+                  <button className="secondary chat-remove-button" type="button" disabled={removing}
+                    onClick={() => void removeMessage(message.id)}>{removing ? 'Removing…' : 'Remove for everyone'}</button>
+                </div>
+              </div>}
               {pickerOpen && !readOnly && <div className="chat-reactions" role="group" aria-label="Choose a reaction">
                 {reactionOptions.map(({emoji,label}) => {
                   const mine = messageReactions.some(item => item.emoji === emoji && item.mine)
@@ -421,6 +464,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
                     onClick={() => void changeReaction(message.id,emoji,!mine)}>{emoji}</button>
                 })}
               </div>}
+              </>}
             </article>
           </li>
         </Fragment>
@@ -429,7 +473,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     {editing && !readOnly && !messages.some(message => message.id === editing.id) && <div className="chat-compose">{editForm}</div>}
     {!readOnly && <form className="chat-compose" onSubmit={send}>
       {replyTo && <div className="chat-reply-preview">
-        <div><small>Replying to</small>{quote(replyTo)}</div>
+        <div><small>Replying to</small>{quote(parents.get(replyTo.id) ?? replyTo)}</div>
         <button className="icon-button" type="button" aria-label="Cancel reply" disabled={posting} onClick={() => {
           setReplyTo(null)
           composer.current?.focus()
