@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { AuthError, Session } from '@supabase/supabase-js'
 import { cloud, readCloud, writeCloud, type CloudWorkspace } from './cloud-workspace'
 import { InviteSignup } from './InviteSignup'
+import { PasswordSettings } from './WorkspaceSettings'
 import { TeamPicker } from './TeamPicker'
 import { readTeam, saveTeam, type Team } from './team-workspace'
 import type { Workspace } from './data'
@@ -42,7 +43,23 @@ function signInError(error: AuthError, method: 'link' | 'password') {
     : 'Supabase could not sign you in. Ask your administrator to check the Supabase Auth logs for this attempt.'
 }
 
+const recoveryKey = 'kasel-password-recovery-user'
+
+function recoveryOwner() {
+  try {return sessionStorage.getItem(recoveryKey) ?? ''}
+  catch {return ''}
+}
+
+function rememberRecovery(owner: string) {
+  try {
+    if (owner) sessionStorage.setItem(recoveryKey,owner)
+    else sessionStorage.removeItem(recoveryKey)
+  } catch { /* Recovery still works for this page. */ }
+}
+
 export function CloudGate({ render }: {render: (options?: CloudControls, openAccount?: () => void) => ReactNode}) {
+  const [recovery, setRecovery] = useState(recoveryOwner)
+  const [recoveryError,setRecoveryError] = useState('')
   const [session, setSession] = useState<Session | null>()
   const [access, setAccess] = useState<{owner: string; allowed: boolean; missing?: boolean} | null>(null)
   const [picker, setPicker] = useState<false | 'teams' | 'invitations'>(false)
@@ -58,12 +75,13 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   const [workspace, setWorkspace] = useState<{owner:string; team?: string; snapshot:CloudWorkspace} | null>(null)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
-  const [method, setMethod] = useState<'link' | 'password'>('password')
+  const [method, setMethod] = useState<'link' | 'password' | 'recovery'>('password')
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [notice, setNotice] = useState('')
   const [sending, setSending] = useState(false)
   const owner = session?.user.id
+  const recovering = Boolean(owner && recovery === owner)
   const resolvedAccess = owner && access?.owner === owner ? access : null
   const teamOnly = resolvedAccess?.allowed === false
   const privateAllowed = resolvedAccess?.allowed === true
@@ -71,7 +89,15 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   useEffect(() => {
     if (!cloud) return
     const subscription = cloud.auth.onAuthStateChange((event, current) => {
+      if (event === 'PASSWORD_RECOVERY' && current) {
+        setRecovery(current.user.id)
+        rememberRecovery(current.user.id)
+        setDemo(false)
+        setSignInOpen(false)
+      }
       if (event === 'SIGNED_OUT') {
+        setRecovery('')
+        rememberRecovery('')
         setAccess(null)
         setTeam(null)
         setPicker(false)
@@ -85,7 +111,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   }, [])
 
   useEffect(() => {
-    if (!cloud || !owner || inDemo) return
+    if (!cloud || !owner || inDemo || recovering) return
     const controller = new AbortController()
     void cloud.rpc('can_use_private_workspace').abortSignal(controller.signal).then(({data,error}) => {
       if (controller.signal.aborted) return
@@ -98,10 +124,10 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       }
     })
     return () => controller.abort()
-  }, [owner, inDemo, attempt])
+  }, [owner, inDemo, attempt, recovering])
 
   useEffect(() => {
-    if (!owner || inDemo || picker || (!team && (!privateAllowed || invite))) return
+    if (!owner || inDemo || recovering || picker || (!team && (!privateAllowed || invite))) return
     const controller = new AbortController()
     const request = team ? readTeam(team.id, controller.signal) : readCloud(owner, controller.signal)
     request.then(snapshot => {
@@ -110,7 +136,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
       if (!controller.signal.aborted) setLoadError('The selected workspace could not be loaded.')
     })
     return () => controller.abort()
-  }, [owner, inDemo, picker, team, attempt, privateAllowed, invite])
+  }, [owner, inDemo, picker, team, attempt, privateAllowed, invite, recovering])
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -120,6 +146,19 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     setSending(true)
     setNotice('')
     try {
+      if (method === 'recovery') {
+        const {error} = await cloud.auth.resetPasswordForEmail(email.trim(),{
+          redirectTo:new URL(import.meta.env.BASE_URL,window.location.origin).href,
+        })
+        if (!error || error.code === 'user_not_found' || error.code === 'email_not_confirmed') {
+          setNotice('If this email has an account, check your inbox for a reset link. Open it in this browser.')
+        } else if (error.status === 429 || error.code === 'over_email_send_rate_limit') {
+          setNotice('Too many email requests. Wait before requesting another reset link.')
+        } else {
+          setNotice('Could not request a reset link. Ask your administrator to check Supabase Auth email delivery.')
+        }
+        return
+      }
       if (method === 'password') {
         const {error} = await cloud.auth.signInWithPassword({email:email.trim(),password})
         if (error) {
@@ -148,6 +187,16 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     setLoadError('')
   }
 
+  async function setPassword(password: string) {
+    const {error} = await cloud!.auth.updateUser({password})
+    if (error) {
+      if (error.code === 'reauthentication_needed') throw new Error('Sign in again before setting a password.')
+      if (error.code === 'weak_password') throw new Error('Choose a stronger password that meets your workspace password policy.')
+      if (error.code === 'same_password') throw new Error('Choose a password you have not used for this account.')
+      throw new Error('Could not update your password. Try again or check your Supabase Auth settings.')
+    }
+  }
+
   function clearInvite() {
     setInvite('')
     setShowSignup(false)
@@ -167,7 +216,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   function signInForm(close: () => void) {
     return <form onSubmit={signIn}>
       <div className="dialog-heading">
-        <h2 id="sign-in-heading">Sign in to your private workspace</h2>
+        <h2 id="sign-in-heading">{method === 'recovery' ? 'Reset your password' : 'Sign in to your private workspace'}</h2>
         <button className="icon-button" type="button" aria-label="Close sign-in" onClick={close}><X size={20} /></button>
       </div>
       <label>Email<input required type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} /></label>
@@ -179,18 +228,37 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
         </div>
       </div>}
       <div className="creative-actions">
-        <button className="primary" disabled={sending}>{method === 'link' ? sending ? 'Sending…' : 'Send sign-in link' : sending ? 'Signing in…' : 'Sign in with password'}</button>
+        <button className="primary" disabled={sending}>{method === 'password' ? (sending ? 'Signing in…' : 'Sign in with password') :
+          sending ? 'Sending…' : method === 'recovery' ? 'Send reset link' : 'Send sign-in link'}</button>
         <button type="button" className="text-button" disabled={sending} onClick={() => {
           setMethod(method === 'link' ? 'password' : 'link')
           setShowPassword(false)
           setNotice('')
-        }}>{method === 'link' ? 'Use a password' : 'Use a sign-in link'}</button>
+        }}>{method === 'recovery' ? 'Back to sign in' : method === 'link' ? 'Use a password' : 'Use a sign-in link'}</button>
+        {method === 'password' && <button type="button" className="text-button" disabled={sending} onClick={() => {
+          setMethod('recovery')
+          setShowPassword(false)
+          setNotice('')
+        }}>Forgot password?</button>}
       </div>
       {notice && <p role="status" className="dev-muted">{notice}</p>}
     </form>
   }
 
   if (!cloud) return render()
+  if (recovering) return <main className="account-gate">
+    <div className="recovery-panel">
+      <PasswordSettings recovery setPassword={async password => {
+        await setPassword(password)
+        rememberRecovery('')
+        setRecovery('')
+      }} />
+      <button className="text-button gate-demo" onClick={() => {
+        void signOut().catch(() => setRecoveryError('Could not sign out. Try again.'))
+      }}>Cancel and sign out</button>
+      {recoveryError && <p role="alert" className="dev-muted">{recoveryError}</p>}
+    </div>
+  </main>
   if (inDemo) return <>
     {render(undefined, () => {
       if (owner) {
@@ -225,14 +293,7 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
     team:team ?? undefined,
     switchWorkspace:focusInvites => setPicker(focusInvites ? 'invitations' : 'teams'),
     save:(data, revision) => team ? saveTeam(team.id, data, revision) : writeCloud(owner, data, revision),
-    async setPassword(password) {
-      const {error} = await cloud!.auth.updateUser({password})
-      if (error) {
-        if (error.code === 'reauthentication_needed') throw new Error('Sign in again before setting a password.')
-        if (error.code === 'weak_password') throw new Error('Choose a stronger password that meets your workspace password policy.')
-        throw new Error('Could not update your password. Try again or check your Supabase Auth settings.')
-      }
-    },
+    setPassword,
     signOut,
   })
 

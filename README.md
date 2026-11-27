@@ -96,6 +96,10 @@ A team owner creates an invitation and chooses **Copy invite link** to share it 
 
 Apply `202611260010_task_discussions.sql`. Open a saved task in a shared team workspace to read its discussion. Owners and editors can post and choose teammates to mention. The recipient sees an in-app notification that opens the relevant comment. Comments and notification reads save immediately, independently of **Save to cloud**. The notifications list checks periodically while the app is open.
 
+### Password recovery
+
+From **Sign in → Forgot password?**, request a reset link and open it in the same browser. The recovery link opens the password form before loading any workspace. Existing password sign-in works without email delivery. Password recovery uses Supabase Auth email delivery and the existing allowed app redirect URL. Test email delivery before relying on recovery for staff.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

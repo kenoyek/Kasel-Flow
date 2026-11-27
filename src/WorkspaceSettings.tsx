@@ -113,7 +113,7 @@ export function WorkspaceSettings({data, installation, privateWorkspace}: {data:
 }
 
 
-export function PasswordSettings({setPassword}: {setPassword: (password: string) => Promise<void>}) {
+export function PasswordSettings({setPassword,recovery = false}: {setPassword: (password: string) => Promise<void>; recovery?: boolean}) {
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
 
@@ -139,8 +139,8 @@ export function PasswordSettings({setPassword}: {setPassword: (password: string)
   }
 
   return <section className="panel dev-card assistant-panel">
-    <h2>Set a sign-in password</h2>
-    <p className="dev-muted">Use a password for future sign-ins without requesting a link.</p>
+    <h2>{recovery ? 'Choose a new password' : 'Set a sign-in password'}</h2>
+    <p className="dev-muted">{recovery ? 'Save a new password to continue to your workspace.' : 'Use a password for future sign-ins without requesting a link.'}</p>
     <form onSubmit={save}>
       <label>New password<input type="password" name="password" autoComplete="new-password" minLength={8} required /></label>
       <label>Confirm password<input type="password" name="confirm" autoComplete="new-password" minLength={8} required /></label>

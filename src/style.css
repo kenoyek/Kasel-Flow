@@ -258,3 +258,5 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .highlight-comment { background: var(--hover); outline: 2px solid var(--accent-text); border-radius: 7px }
 .discussion-post { margin-top: 10px }
 .notification-panel { max-height: min(65vh, 430px); overflow-y: auto }
+.recovery-panel { width: min(100%, 430px) }
+.recovery-panel > section { padding: 22px }
