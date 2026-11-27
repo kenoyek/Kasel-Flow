@@ -160,3 +160,9 @@ npm run dev
 Run `npm run build` to type-check the application and produce the production bundle in `dist/`.
 
 The demo saves changes in this browser's local storage. Use it with sample data only. Private cloud sign-in is available when configured. Team projects and tasks can be shared when Supabase is configured. See [the master development brief](docs/master-development-brief.md) for the implementation roadmap.
+
+### Production database deployment
+
+Pushes to `main` run **Production Supabase migrations** in GitHub Actions. The workflow requires a repository Actions secret named `SUPABASE_ACCESS_TOKEN` from an account with database query access to the production Supabase project. The private `kasel_deploy.migrations` table tracks which SQL files have been applied and their checksums. Create a new versioned SQL file for each change, keep applied files intact, and leave transaction control to the deploy script.
+
+Vercel deploys the frontend through its Git integration. GitHub Actions and Vercel run independently, so keep migrations compatible with the live frontend. For a frontend change that requires a new database capability immediately, land the migration first, confirm the Actions run succeeded, then merge the UI change. To retry a failed database deployment after correcting the cause, run the workflow from the Actions tab.
