@@ -92,6 +92,10 @@ Apply `202611260009_invite_signup.sql` and, in Supabase **Authentication → Hoo
 
 A team owner creates an invitation and chooses **Copy invite link** to share it with the intended recipient. The recipient chooses a password, confirms their email, and accepts the team invitation. Existing users can sign in from the invite link. The hook requires a live invitation for the exact email before a new user can sign up. It also applies to account creation in ways that invoke the same Supabase hook. The app copies links for owners to share. Supabase sends the signup confirmation email.
 
+## Team task discussion
+
+Apply `202611260010_task_discussions.sql`. Open a saved task in a shared team workspace to read its discussion. Owners and editors can post and choose teammates to mention. The recipient sees an in-app notification that opens the relevant comment. Comments and notification reads save immediately, independently of **Save to cloud**. The notifications list checks periodically while the app is open.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

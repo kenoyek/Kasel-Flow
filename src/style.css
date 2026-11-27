@@ -249,3 +249,12 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .destructive-primary:disabled { opacity: .55; cursor: default }
 .team-workspace-label { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0 }
 .team-workspace-row .primary { margin-top: 0 }
+.task-discussion { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px }
+.task-discussion h3 { font-size: 14px }
+.discussion-list { list-style: none; padding: 0; margin: 8px 0 }
+.discussion-list li { padding: 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; font-size: 12px }
+.discussion-list time, .discussion-list small { display: block; color: var(--muted); margin-top: 4px }
+.discussion-list p { white-space: pre-wrap; margin-top: 6px }
+.highlight-comment { background: var(--hover); outline: 2px solid var(--accent-text); border-radius: 7px }
+.discussion-post { margin-top: 10px }
+.notification-panel { max-height: min(65vh, 430px); overflow-y: auto }

@@ -10,6 +10,7 @@ import { Business } from './Business'
 import { emptyBusiness } from './business-data'
 import { Creative } from './Creative'
 import { Development } from './Development'
+import { TaskDiscussion, useTaskMentions, type TaskMention } from './TaskDiscussion'
 import { TaskChecklist, checklistProgress } from './TaskChecklist'
 import { TaskBoard } from './TaskBoard'
 import { TeamActivity } from './TeamActivity'
@@ -71,6 +72,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [rosterError, setRosterError] = useState(false)
   const [rosterAttempt, setRosterAttempt] = useState(0)
   const teamId = team?.id
+  const {mentions,markRead} = useTaskMentions(teamId)
+  const [highlightComment,setHighlightComment] = useState<string>()
   const {latest, connection, refreshing, refreshError, refresh} = useTeamUpdates(teamId)
   const newer = latest && latest.revision > revision ? latest : null
   const [search, setSearch] = useState('')
@@ -217,12 +220,32 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     setNotifications(false)
   }
 
-  function openTask(task: Task | null = null) {
+  function openTask(task: Task | null = null, comment?: string) {
     if (readOnly && !task) return
+    setHighlightComment(comment)
     setChecklist(task?.checklist ?? [])
     setTaskProject(task?.project ?? (projectFilter || projects[0]?.id || ''))
     setEditingTask(task)
     setModal('task')
+  }
+
+  function openMention(mention: TaskMention) {
+    setNotifications(false)
+    const task = data.tasks.find(item => item.id === mention.task_id)
+    if (!task) {
+      setCloudMessage('This task is unavailable in the open workspace. Check for updates and try again.')
+      refresh()
+      return
+    }
+    openTask(task,mention.comment_id)
+    void markRead(mention)
+  }
+
+  function taskDiscussion(task: Task) {
+    if (!teamId || !account) return null
+    if (!saved.tasks.some(item => item.id === task.id)) return <p className="empty">Save to cloud to start a discussion on this task.</p>
+    return <TaskDiscussion key={task.id + ':' + (highlightComment ?? '')} teamId={teamId} taskId={task.id}
+      owner={account.owner} members={roster ?? []} readOnly={readOnly} highlight={highlightComment} />
   }
 
   function openProject(project: Project | null = null) {
@@ -306,10 +329,12 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         <div className="top-actions">
           <label className="search"><Search size={17} /><input type="search" aria-label="Search workspace" placeholder="Search workspace…" value={search} onChange={event => setSearch(event.target.value)} /></label>
           <button className="icon-button" aria-label={dark ? 'Use light mode' : 'Use dark mode'} onClick={() => setDark(!dark)}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
-          <button className="icon-button bell" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={20} />{(reviews.length > 0 || reviewExtras > 0) && <i />}</button>
+          <button className="icon-button bell" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={20} />{(reviews.length > 0 || reviewExtras > 0 || mentions.some(item => !item.read_at)) && <i />}</button>
           {!account && <button className="secondary top-sign-in" onClick={openAccount ?? (() => navigate('Settings'))}>Sign in</button>}
         </div>
-        {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{!reviews.length && !reviewExtras && <p>You’re all caught up.</p>}</section>}
+        {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{mentions.map(mention => <button key={mention.comment_id} type="button" onClick={() => openMention(mention)}>
+          <Bell size={17} /><span><strong>{mention.task_title}</strong><small>{mention.author_label} mentioned you{!mention.read_at && ' · New'}</small></span>
+        </button>)}{!reviews.length && !reviewExtras && !mentions.length && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
         <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
@@ -415,6 +440,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       <p className="dev-muted">{[taskContext(editingTask),editingTask.status,editingTask.priority ?? 'Normal',formatDate(editingTask.due)].filter(Boolean).join(' · ')}</p>
       {editingTask.description && <p className="task-description">{editingTask.description}</p>}
       <TaskChecklist items={editingTask.checklist ?? []} />
+      {taskDiscussion(editingTask)}
     </dialog>}
     {modal && !readOnly && <dialog ref={element => {if (element && !element.open) element.showModal()}} onCancel={() => setModal(null)} aria-labelledby="editor-title">
       <form onSubmit={saveItem}>
@@ -429,6 +455,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         </>}
         <div className="dialog-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>Cancel</button><button className="primary" type="submit">Save {modal}</button></div>
       </form>
+      {modal === 'task' && editingTask && taskDiscussion(editingTask)}
     </dialog>}
   </div>
 }
