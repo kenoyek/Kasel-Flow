@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { MessagesSquare, Pin, RefreshCw, Send } from 'lucide-react'
+import { MessagesSquare, Pin, RefreshCw, Reply, Send, X } from 'lucide-react'
 import { cloud } from './cloud-workspace'
 
-type Message = {id:string; author_id?:string | null; author_label:string; body:string; created_at:string}
+type MessageContent = {id:string; author_id?:string | null; author_label:string; body:string}
+type Message = MessageContent & {created_at:string; reply_to:string | null}
 type Profile = {user_id:string; label:string; display_name:string | null}
 const batch = 30
 const dayLabel = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'long'})
@@ -21,8 +22,11 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
   const [pinned,setPinned] = useState<Message | null>(null)
   const [pinBusy,setPinBusy] = useState(false)
   const [pinError,setPinError] = useState('')
+  const [parents,setParents] = useState(new Map<string,MessageContent>())
   const [profiles,setProfiles] = useState<Profile[]>([])
   const [messages,setMessages] = useState<Message[]>([])
+  const [replyTo,setReplyTo] = useState<MessageContent | null>(null)
+  const composer = useRef<HTMLTextAreaElement>(null)
   const [draft,setDraft] = useState('')
   const [loading,setLoading] = useState(true)
   const [posting,setPosting] = useState(false)
@@ -46,7 +50,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     }
   },[messages])
 
-  function sender(message:Message) {
+  function sender(message:MessageContent) {
     const own = message.author_id === userId || (!message.author_id && message.author_label === email)
     const profile = profiles.find(item => message.author_id ? item.user_id === message.author_id : item.label === message.author_label)
     const name = (own ? displayName : profile?.display_name) || message.author_label
@@ -62,18 +66,30 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       request?.abort()
       const next = new AbortController()
       request = next
-      const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at').eq('team_id',teamId)
+      const room = () => client.from('team_chat_messages').select('id,author_id,author_label,body,created_at,reply_to').eq('team_id',teamId)
       const recent = room().order('created_at',{ascending:false}).order('id',{ascending:false}).limit(limit+1).abortSignal(next.signal)
       const pin = room().not('pinned_at','is',null).abortSignal(next.signal).maybeSingle()
       const people = client.rpc('team_chat_profiles',{target_team:teamId}).abortSignal(next.signal)
-      void Promise.all([recent,pin,people]).then(([{data,error},pinResult,peopleResult]) => {
+      void Promise.all([recent,pin,people]).then(async ([{data,error},pinResult,peopleResult]) => {
           if (!active || next.signal.aborted) return
           setLoading(false)
           setLoadError(Boolean(error))
           if (error) return
-          if (!peopleResult.error) setProfiles(peopleResult.data ?? [])
-          setPinned(pinResult.error ? null : pinResult.data)
           const items = (data ?? []).slice(0,limit)
+          const currentPin = pinResult.error ? null : pinResult.data
+          const visible = currentPin ? [...items,currentPin] : items
+          const known = new Map<string,MessageContent>(visible.map(message => [message.id,message]))
+          const missing = [...new Set(visible.flatMap(message =>
+            message.reply_to && !known.has(message.reply_to) ? [message.reply_to] : []
+          ))]
+          if (missing.length) {
+            const {data:older} = await room().in('id',missing).abortSignal(next.signal)
+            if (!active || next.signal.aborted) return
+            for (const message of older ?? []) known.set(message.id,message)
+          }
+          if (!peopleResult.error) setProfiles(peopleResult.data ?? [])
+          setPinned(currentPin)
+          setParents(known)
           setMessages(items)
           if (items[0] && !document.hidden) void onRead(items[0].id)
           setHasMore((data ?? []).length > limit)
@@ -105,9 +121,13 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     setPosting(true)
     setPostError('')
     try {
-      const {error} = await cloud!.rpc('post_team_chat_message',{target_team:teamId,message_body:draft})
+      const args = {target_team:teamId,message_body:draft}
+      const {error} = replyTo
+        ? await cloud!.rpc('reply_to_team_chat_message',{...args,target_message:replyTo.id})
+        : await cloud!.rpc('post_team_chat_message',args)
       if (error) {setPostError('Could not send the message. Your draft is still here.');return}
       setDraft('')
+      setReplyTo(null)
       followLatest.current = true
       refresh.current()
     } catch {
@@ -129,8 +149,16 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
     } finally {setPinBusy(false)}
   }
 
+  function quote(message:MessageContent) {
+    return <blockquote className="chat-quote">
+      <strong>{sender(message).name}</strong>
+      <span>{message.body}</span>
+    </blockquote>
+  }
+
   const chronological = [...messages].reverse()
   const pinnedSender = pinned ? sender(pinned) : null
+  const pinnedParent = pinned?.reply_to ? parents.get(pinned.reply_to) : undefined
 
   return <section className="panel team-chat" aria-label="Team chat">
     <div className="panel-heading chat-room-header">
@@ -143,7 +171,9 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       <div className="dev-card-heading"><h3><Pin size={15} /> Pinned message</h3>
         {!readOnly && <button className="text-button" type="button" disabled={pinBusy} onClick={() => void changePin(pinned,false)}>Unpin</button>}
       </div>
-      <strong>{pinnedSender.name}</strong><p>{pinned.body}</p>
+      <strong>{pinnedSender.name}</strong>
+      {pinnedParent && quote(pinnedParent)}
+      <p>{pinned.body}</p>
     </section>}
     {pinError && <p role="alert" className="empty">{pinError}</p>}
     <div ref={conversation} className="chat-conversation" onScroll={event => {
@@ -160,6 +190,7 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
       {!!chronological.length && <ol className="chat-thread">{chronological.map((message,index) => {
         const identity = sender(message)
         const date = day(message.created_at)
+        const parent = message.reply_to ? parents.get(message.reply_to) : undefined
         return <Fragment key={message.id}>
           {(index === 0 || day(chronological[index-1].created_at) !== date) && <li className="chat-day">{date}</li>}
           <li className={'chat-line' + (identity.own ? ' chat-own' : '')}>
@@ -170,16 +201,32 @@ export function TeamChat({teamId,teamName,userId,email,displayName,readOnly,onRe
                 <time dateTime={message.created_at}>{timeLabel.format(new Date(message.created_at))} WAT</time>
               </div>
               {identity.name !== identity.email && <small className="chat-email">{identity.email}</small>}
-              <p className="chat-bubble">{message.body}</p>
+              <div className="chat-bubble">
+                {parent && quote(parent)}
+                <p>{message.body}</p>
+              </div>
+              <div className="chat-message-actions">
+                {!readOnly && <button className="text-button" type="button" disabled={posting} onClick={() => {
+                setReplyTo(message)
+                composer.current?.focus()
+              }}><Reply size={14} /> Reply</button>}
               {pinned?.id === message.id ? <span className="status">Pinned</span> : !readOnly && <button className="text-button chat-pin-action" type="button" disabled={pinBusy}
                 onClick={() => void changePin(message,true)}>{pinned ? 'Replace pin' : 'Pin message'}</button>}
+              </div>
             </article>
           </li>
         </Fragment>
       })}</ol>}
     </div>
     {!readOnly && <form className="chat-compose" onSubmit={send}>
-      <label>Message<textarea rows={2} maxLength={4000} value={draft} disabled={posting} placeholder="Write a message…" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+      {replyTo && <div className="chat-reply-preview">
+        <div><small>Replying to</small>{quote(replyTo)}</div>
+        <button className="icon-button" type="button" aria-label="Cancel reply" disabled={posting} onClick={() => {
+          setReplyTo(null)
+          composer.current?.focus()
+        }}><X size={16} /></button>
+      </div>}
+      <label>Message<textarea ref={composer} rows={2} maxLength={4000} value={draft} disabled={posting} placeholder="Write a message…" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
           event.preventDefault()
           event.currentTarget.form?.requestSubmit()

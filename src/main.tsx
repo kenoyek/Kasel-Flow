@@ -443,7 +443,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
-          {page === 'Chat' && team && account && <TeamChat teamId={team.id} teamName={team.name} userId={account.owner}
+          {page === 'Chat' && team && account && <TeamChat key={team.id} teamId={team.id} teamName={team.name} userId={account.owner}
             email={account.email} displayName={account.displayName} readOnly={readOnly} onRead={markChatRead} />}
           {page === 'My Work' && team && account && <MyWork owner={account.owner} tasks={tasksById} today={today}
             mentions={mentions} reviews={reviewNotices} renderTask={renderTask} openMention={openMention} openReview={openReviewNotice} />}
