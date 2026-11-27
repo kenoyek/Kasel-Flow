@@ -5,7 +5,7 @@ type Message = {id:string; author_label:string; body:string; created_at:string}
 const batch = 30
 const dates = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'medium',timeStyle:'short'})
 
-export function TeamChat({teamId,readOnly}: {teamId:string;readOnly:boolean}) {
+export function TeamChat({teamId,readOnly,onRead}: {teamId:string;readOnly:boolean;onRead:(id:string)=>Promise<void>}) {
   const [messages,setMessages] = useState<Message[]>([])
   const [draft,setDraft] = useState('')
   const [loading,setLoading] = useState(true)
@@ -32,7 +32,9 @@ export function TeamChat({teamId,readOnly}: {teamId:string;readOnly:boolean}) {
           setLoading(false)
           setLoadError(Boolean(error))
           if (error) return
-          setMessages((data ?? []).slice(0,limit))
+          const items = (data ?? []).slice(0,limit)
+          setMessages(items)
+          if (items[0] && !document.hidden) void onRead(items[0].id)
           setHasMore((data ?? []).length > limit)
         })
     }
@@ -42,16 +44,18 @@ export function TeamChat({teamId,readOnly}: {teamId:string;readOnly:boolean}) {
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'team_chat_messages',filter:'team_id=eq.' + teamId},fetchMessages)
       .subscribe(status => {if (active && status === 'SUBSCRIBED') fetchMessages()})
     window.addEventListener('focus',fetchMessages)
+    document.addEventListener('visibilitychange',fetchMessages)
     const fallback = window.setInterval(() => {if (!document.hidden) fetchMessages()},30000)
     return () => {
       active = false
       request?.abort()
       window.clearInterval(fallback)
       window.removeEventListener('focus',fetchMessages)
+      document.removeEventListener('visibilitychange',fetchMessages)
       refresh.current = () => {}
       void client.removeChannel(channel)
     }
-  },[teamId,limit])
+  },[teamId,limit,onRead])
 
   async function send(event:FormEvent<HTMLFormElement>) {
     event.preventDefault()

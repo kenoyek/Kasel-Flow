@@ -12,6 +12,7 @@ import { Creative } from './Creative'
 import { Development } from './Development'
 import { MyWork } from './MyWork'
 import { TaskReviews, useReviewInbox, type ReviewNotice } from './TaskReviews'
+import { useUnreadChat } from './useUnreadChat'
 import { TeamChat } from './TeamChat'
 import { TaskDiscussion, taskNoticeText, useTaskMentions, type TaskMention } from './TaskDiscussion'
 import { TaskDependencies } from './TaskDependencies'
@@ -86,6 +87,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   const [rosterError, setRosterError] = useState(false)
   const [rosterAttempt, setRosterAttempt] = useState(0)
   const teamId = team?.id
+  const {count:unreadChat,markRead:markChatRead} = useUnreadChat(teamId)
   const {items:reviewNotices,remove:removeReviewNotice} = useReviewInbox(teamId, account?.owner)
   const [highlightReview,setHighlightReview] = useState<string>()
   const {mentions,markRead} = useTaskMentions(teamId)
@@ -385,14 +387,16 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         <div className="top-actions">
           <label className="search"><Search size={17} /><input type="search" aria-label="Search workspace" placeholder="Search workspace…" value={search} onChange={event => setSearch(event.target.value)} /></label>
           <button className="icon-button" aria-label={dark ? 'Use light mode' : 'Use dark mode'} onClick={() => setDark(!dark)}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
-          <button className="icon-button bell" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={20} />{(reviews.length > 0 || reviewExtras > 0 || reviewNotices.length > 0 || mentions.some(item => !item.read_at)) && <i />}</button>
+          <button className="icon-button bell" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={20} />{(reviews.length > 0 || reviewExtras > 0 || reviewNotices.length > 0 || unreadChat > 0 || mentions.some(item => !item.read_at)) && <i />}</button>
           {!account && <button className="secondary top-sign-in" onClick={openAccount ?? (() => navigate('Settings'))}>Sign in</button>}
         </div>
         {notifications && <section className="notification-panel"><h3>Notifications</h3>{reviews.length ? reviews.map(task => <button key={task.id} onClick={() => {setNotifications(false);openTask(task)}}><ClipboardCheck size={17} /><span><strong>{task.title}</strong><small>Awaiting review</small></span></button>) : null}{reviewExtras > 0 && <button onClick={() => navigate('Assistant')}><ClipboardCheck size={17} /><span><strong>{reviewExtras} additional items awaiting review</strong><small>Creative and client approvals</small></span></button>}{mentions.map(mention => <button key={mention.comment_id} type="button" onClick={() => openMention(mention)}>
           <Bell size={17} /><span><strong>{mention.task_title}</strong><small>{taskNoticeText(mention)}{!mention.read_at && ' · New'}</small></span>
         </button>)}{reviewNotices.map(notice => <button key={notice.id} type="button" onClick={() => openReviewNotice(notice)}>
           <ClipboardCheck size={17} /><span><strong>{notice.title}</strong><small>Deliverable review · {notice.task_title}</small></span>
-        </button>)}{!reviews.length && !reviewExtras && !mentions.length && !reviewNotices.length && <p>You’re all caught up.</p>}</section>}
+        </button>)}{unreadChat > 0 && <button type="button" onClick={() => navigate('Chat')}>
+          <MessagesSquare size={17} /><span><strong>Team chat</strong><small>{unreadChat} unread {unreadChat === 1 ? 'message' : 'messages'}</small></span>
+        </button>}{!reviews.length && !reviewExtras && !mentions.length && !reviewNotices.length && !unreadChat && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
         <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Timeline:'Plan work by start date and deadline.','My Work':'Find your assignments, review requests, and discussion alerts.',Chat:'Talk with members of this workspace.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
@@ -439,7 +443,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
-          {page === 'Chat' && teamId && <TeamChat teamId={teamId} readOnly={readOnly} />}
+          {page === 'Chat' && teamId && <TeamChat teamId={teamId} readOnly={readOnly} onRead={markChatRead} />}
           {page === 'My Work' && team && account && <MyWork owner={account.owner} tasks={tasksById} today={today}
             mentions={mentions} reviews={reviewNotices} renderTask={renderTask} openMention={openMention} openReview={openReviewNotice} />}
           {page === 'Activity' && teamId && <TeamActivity teamId={teamId} revision={revision} />}
