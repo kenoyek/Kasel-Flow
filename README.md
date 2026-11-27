@@ -120,6 +120,10 @@ Open a task and choose what it **Depends on**. Dependencies link tasks in the sa
 
 Open **Timeline** and use the existing project, status, priority, or assignee filters to plan the month. Tasks with start and due dates cover that range. Tasks with a single date appear on that day, and undated tasks are listed separately. Open any task to see its details or edit its dates if your role permits. Timeline edits follow the existing workspace save flow.
 
+## My Work
+
+In a shared or restricted workspace, open **My Work** to see tasks assigned to your account. Filter for open, overdue, blocked, or completed work. The same screen shows pending deliverable reviews and unread mentions and opens the relevant task directly.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

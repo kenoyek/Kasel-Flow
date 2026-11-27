@@ -282,3 +282,9 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .timeline-bar { display: block; height: 12px; min-width: 4px; border-radius: 4px; background: var(--violet) }
 .timeline-bar.complete { background: #267d62 }
 .timeline-unscheduled { padding: 12px 14px; border-top: 1px solid var(--line); font-size: 13px }
+.my-work { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; align-items: start }
+.my-work-inbox { display: grid; gap: 14px }
+.my-work-filters { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line) }
+.my-work-filters span { margin-left: 4px }
+.inbox-row { grid-template-columns: auto minmax(0, 1fr) }
+@media (max-width: 1000px) { .my-work { grid-template-columns: minmax(0, 1fr) } }
