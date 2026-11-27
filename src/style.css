@@ -267,3 +267,18 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .dependency-options { max-height: 180px; overflow-y: auto }
 .dependency-options label, .blocked-filter { display: flex; align-items: center; gap: 6px }
 .dependency-options label { flex: 1; margin: 0 }
+.timeline-heading { flex-wrap: wrap }
+.timeline-controls { margin-top: 0 }
+.timeline-scroll { overflow-x: auto }
+.timeline-table { min-width: 640px; padding: 0 14px }
+.timeline-row { display: grid; grid-template-columns: minmax(150px, 28%) 1fr; column-gap: 10px; min-height: 42px; align-items: center; border-bottom: 1px solid var(--line) }
+.timeline-row:last-child { border-bottom: 0 }
+.timeline-axis { min-height: 30px; color: var(--muted); font-size: 11px }
+.timeline-days { display: grid; align-items: center; }
+.timeline-days > span { min-width: 0 }
+.timeline-task { min-width: 0; padding: 3px 0; overflow-wrap: anywhere }
+.timeline-task button { text-align: left; white-space: normal }
+.timeline-task small { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px }
+.timeline-bar { display: block; height: 12px; min-width: 4px; border-radius: 4px; background: var(--violet) }
+.timeline-bar.complete { background: #267d62 }
+.timeline-unscheduled { padding: 12px 14px; border-top: 1px solid var(--line); font-size: 13px }

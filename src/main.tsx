@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, Columns3, History, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, Columns3, GanttChartSquare, History, LayoutDashboard, ListTodo, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
 import { colors, departments, seed, statuses, taskPriorities, type Priority, type ChecklistItem, type Project, type Status, type Task, type Workspace } from './data'
 import { PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { CloudGate, type CloudControls } from './CloudGate'
@@ -15,6 +15,7 @@ import { TaskDiscussion, useTaskMentions, type TaskMention } from './TaskDiscuss
 import { TaskDependencies } from './TaskDependencies'
 import { blockedTask, dependsOnTask, taskDependencies } from './task-dependencies'
 import { TaskChecklist, checklistProgress } from './TaskChecklist'
+import { TaskTimeline, taskDateLabel } from './TaskTimeline'
 import { TaskBoard } from './TaskBoard'
 import { TeamActivity } from './TeamActivity'
 import { useTeamUpdates } from './useTeamUpdates'
@@ -30,6 +31,7 @@ const links = [
   { label: 'Tasks', icon: ListTodo },
   { label: 'Board', icon: Columns3 },
   { label: 'Calendar', icon: CalendarDays },
+  { label: 'Timeline', icon: GanttChartSquare },
   { label: 'Workload', icon: Users },
   { label: 'Activity', icon: History },
   { label: 'Assistant', icon: Sparkles },
@@ -198,7 +200,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
   }, [dark])
 
   const tasksById = new Map(data.tasks.map(task => [task.id,task]))
-  const taskPage = ['Tasks','Calendar','Board'].includes(page)
+  const taskPage = ['Tasks','Calendar','Board','Timeline'].includes(page)
   const department = departments.includes(page) ? page : ''
   const projects = department ? data.projects.filter(project => project.department === department) : data.projects
   const tasks = data.tasks.filter(task => projects.some(project => project.id === task.project))
@@ -301,8 +303,16 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
       setData(previous => ({...previous,projects:editingProject ? previous.projects.map(project => project.id === item.id ? item : project) : [...previous.projects,item]}))
       navigate(department && department === item.department ? department : 'Projects')
     } else {
+      const start = value('start')
+      const due = value('due')
+      const dueInput = event.currentTarget.querySelector<HTMLInputElement>('input[name="due"]')
+      if (dueInput && start && due && start > due) {
+        dueInput.setCustomValidity('The due date must be on or after the start date.')
+        dueInput.reportValidity()
+        return
+      }
       const sprint = data.development.find(record => record.kind === 'sprint' && record.id === value('sprint') && record.project === value('project'))
-      const item: Task = {...editingTask,id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,priority:value('priority') as Priority,description:value('description') || undefined,checklist:checklist.length ? checklist : undefined,due:value('due'),sprint:sprint?.id,assignee:roster ? value('assignee') || undefined : editingTask?.assignee}
+      const item: Task = {...editingTask,id:editingTask?.id ?? crypto.randomUUID(),title:value('name'),project:value('project'),status:value('status') as Status,priority:value('priority') as Priority,description:value('description') || undefined,checklist:checklist.length ? checklist : undefined,due,start:start || undefined,sprint:sprint?.id,assignee:roster ? value('assignee') || undefined : editingTask?.assignee}
       const dependencies = taskDependencies({...item,dependsOn},tasksById)
       if (dependencies.some(dependency => dependsOnTask(dependency,item.id,tasksById))) {
         setDependencyError('Remove the circular dependency before saving.')
@@ -315,7 +325,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         const remaining = task.dependsOn.filter(id => id !== item.id)
         return {...task,dependsOn:remaining.length ? remaining : undefined}
       }) : [...previous.tasks,item]}))
-      if (!editingTask && page !== 'Development' && page !== 'Board') navigate('Tasks', item.project)
+      if (!editingTask && page !== 'Development' && page !== 'Board' && page !== 'Timeline') navigate('Tasks', item.project)
     }
     setModal(null)
   }
@@ -379,7 +389,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         </button>)}{!reviews.length && !reviewExtras && !mentions.length && !reviewNotices.length && <p>You’re all caught up.</p>}</section>}
       </header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
+        <div className="page-heading"><div><div className="eyebrow">{department ? 'DEPARTMENT WORKSPACE' : 'KASEL DIGITAL SOLUTIONS'}</div><h1>{page === 'Overview' ? 'Executive overview' : page}</h1><p>{page === 'Overview' ? 'Track projects, team progress, and what needs your attention.' : department ? 'Manage this department’s projects and deliverables.' : {Projects:'Track deliverables and progress across the agency.',Tasks:'Manage assignments, deadlines, and reviews.',Board:'Organize tasks by status and priority.',Calendar:'See upcoming deliverables and task deadlines.',Timeline:'Plan work by start date and deadline.',Assistant:'Run reports, draft work, and manage review reminders.',Settings:'Install the app and export your workspace records.',Workload:'See open work and overdue tasks for each team member.',Activity:'See who changed shared records and when.'}[page]}</p></div>
         {!readOnly && page !== 'Assistant' && page !== 'Settings' && page !== 'Workload' && page !== 'Activity' && (!restrictedProject || taskPage) && <button className="primary" onClick={() => taskPage ? (data.projects.length ? openTask() : openProject()) : openProject()}><Plus size={18} />{taskPage && data.projects.length ? 'New task' : 'New project'}</button>}</div>
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
@@ -467,7 +477,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
             <label className="blocked-filter"><input type="checkbox" checked={blockedOnly} onChange={event => setBlockedOnly(event.target.checked)} /> Blocked only</label>
             {openOnly && <button className="text-button" onClick={() => setOpenOnly(false)}>Show completed tasks</button>}
             <span>{filteredTasks.length} tasks</span>{overdueOnly && <button className="text-button" onClick={() => setOverdueOnly(false)}>Clear overdue filter <X size={14} /></button>}</div>
-            {page === 'Board' ? <TaskBoard tasks={filteredTasks} readOnly={readOnly} onEdit={openTask} details={task => <>
+            {page === 'Timeline' ? <TaskTimeline tasks={filteredTasks} today={today} onOpen={openTask} /> : page === 'Board' ? <TaskBoard tasks={filteredTasks} readOnly={readOnly} onEdit={openTask} details={task => <>
               <p className="dev-muted">{taskContext(task)}</p><p className="dev-muted">{formatDate(task.due)}</p>
               {!!task.checklist?.length && <p className="dev-muted">{checklistProgress(task.checklist)}</p>}
               {blockedTask(task,tasksById) && <p className="dev-muted"><span className="status in-review">Blocked</span></p>}
@@ -481,7 +491,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
     {readOnly && modal === 'task' && editingTask && <dialog ref={element => {if (element && !element.open) element.showModal()}} onCancel={() => setModal(null)} aria-labelledby="task-details-title">
       <div className="dialog-heading"><h2 id="task-details-title">{editingTask.title}</h2>
         <button type="button" className="icon-button" aria-label="Close" onClick={() => setModal(null)}><X size={20} /></button></div>
-      <p className="dev-muted">{[taskContext(editingTask),editingTask.status,editingTask.priority ?? 'Normal',formatDate(editingTask.due)].filter(Boolean).join(' · ')}</p>
+      <p className="dev-muted">{[taskContext(editingTask),editingTask.status,editingTask.priority ?? 'Normal',taskDateLabel(editingTask)].filter(Boolean).join(' · ')}</p>
       {editingTask.description && <p className="task-description">{editingTask.description}</p>}
       <TaskDependencies tasks={tasksById} project={editingTask.project} task={editingTask} selected={[]} />
       <TaskChecklist items={editingTask.checklist ?? []} />
@@ -495,7 +505,10 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
           const id = event.target.value
           setTaskProject(id)
           setDependencyError('')
-        }}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Priority<select name="priority" defaultValue={editingTask?.priority ?? 'Normal'}>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}</select></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
+        }}>{data.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Status<select name="status" defaultValue={editingTask?.status ?? 'To do'}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label><label>Priority<select name="priority" defaultValue={editingTask?.priority ?? 'Normal'}>{taskPriorities.map(priority => <option key={priority}>{priority}</option>)}</select></label><label>Start date<input name="start" type="date" defaultValue={editingTask?.start} onInput={event => {
+          const due = event.currentTarget.form?.querySelector<HTMLInputElement>('input[name="due"]')
+          due?.setCustomValidity('')
+        }} /></label><label>Due date<input name="due" type="date" defaultValue={editingTask?.due} onInput={event => event.currentTarget.setCustomValidity('')} /></label>{roster && <label>Assignee<select name="assignee" defaultValue={editingTask?.assignee ?? ''}>
           <option value="">Unassigned</option>{roster.map(member => <option key={member.user_id} value={member.user_id}>{member.label}</option>)}
         </select></label>}{!team && data.projects.some(project => project.id === taskProject && project.department === 'Development') && <label>Sprint<select name="sprint" key={taskProject} defaultValue={editingTask?.project === taskProject ? editingTask.sprint ?? '' : ''}><option value="">Backlog</option>{data.development.filter(record => record.kind === 'sprint' && record.project === taskProject).map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</select></label>}</>}
         {modal === 'task' && <>

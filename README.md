@@ -116,6 +116,10 @@ Apply `202611260013_team_deliverable_reviews.sql`. Open a saved task in a shared
 
 Open a task and choose what it **Depends on**. Dependencies link tasks in the same project. A task displays **Blocked** while it and at least one dependency are open. Use **Blocked only** on the Board, Tasks, or Calendar to triage that work. Moving a task to another project removes its links to the previous project. Dependencies use the existing workspace save flow.
 
+## Project timeline
+
+Open **Timeline** and use the existing project, status, priority, or assignee filters to plan the month. Tasks with start and due dates cover that range. Tasks with a single date appear on that day, and undated tasks are listed separately. Open any task to see its details or edit its dates if your role permits. Timeline edits follow the existing workspace save flow.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.
