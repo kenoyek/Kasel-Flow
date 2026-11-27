@@ -144,6 +144,10 @@ New task comments notify the current assignee and teammates who previously poste
 
 Owners and editors can pin one message per room, replace it, or unpin it. The pinned message appears above the conversation for all workspace members, including viewers. Pinning does not add unread messages.
 
+### Chat display names
+
+Team members can set their name under **Settings → Display name**. Chat shows it alongside the member’s email. Archived messages can still use the email when an author’s current display name is unavailable. Apply `202611260019_team_chat_display_names.sql` to expose the display names of current members to their own workspace.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

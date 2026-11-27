@@ -149,3 +149,33 @@ export function PasswordSettings({setPassword,recovery = false}: {setPassword: (
     </form>
   </section>
 }
+
+export function DisplayNameSettings({current,saveName}: {current:string;saveName:(value:string)=>Promise<void>}) {
+  const [value,setValue] = useState(current)
+  const [busy,setBusy] = useState(false)
+  const [status,setStatus] = useState('')
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy) return
+    setBusy(true)
+    setStatus('')
+    try {
+      await saveName(value.trim())
+      setValue(value.trim())
+      setStatus(value.trim() ? 'Display name saved.' : 'Display name cleared. Chat will show your email.')
+    } catch {
+      setStatus('Could not save your display name. Try again.')
+    } finally {setBusy(false)}
+  }
+
+  return <section className="panel dev-card assistant-panel">
+    <h2>Display name</h2>
+    <p className="dev-muted">Show your name alongside your email in team chat.</p>
+    <form onSubmit={submit}>
+      <label>Display name<input name="displayName" autoComplete="name" maxLength={80} value={value} disabled={busy} onChange={event => setValue(event.target.value)} /></label>
+      <button className="primary" disabled={busy || value.trim() === current}>{busy ? 'Saving…' : 'Save display name'}</button>
+      {status && <p className="dev-muted" role="status">{status}</p>}
+    </form>
+  </section>
+}

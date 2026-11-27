@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArrowDownRight, ArrowRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Code2, FolderKanban, Columns3, GanttChartSquare, History, LayoutDashboard, ListTodo, ListChecks, MessagesSquare, Megaphone, Menu, Moon, Palette, Plus, Search, Settings2, Sparkles, Sun, Users, X } from 'lucide-react'
 import { colors, departments, seed, statuses, taskPriorities, type Priority, type ChecklistItem, type Project, type Status, type Task, type Workspace } from './data'
-import { PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
+import { DisplayNameSettings, PasswordSettings, WorkspaceSettings, useAppInstallation } from './WorkspaceSettings'
 import { CloudGate, type CloudControls } from './CloudGate'
 import { Assistant } from './Assistant'
 import { defaultAutomation, reportWorkspace } from './assistant-data'
@@ -443,7 +443,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <section className="panel"><div className="panel-heading"><div><h2>Upcoming deadlines</h2><p>Open tasks ordered by due date</p></div><button className="text-button" onClick={() => navigate('Calendar')}>Calendar <ArrowRight size={15} /></button></div>{upcoming.slice(0,4).map(renderTask)}{!upcoming.length && <p className="empty">No upcoming deadlines.</p>}</section>
             </div>
           </>}
-          {page === 'Chat' && teamId && <TeamChat teamId={teamId} readOnly={readOnly} onRead={markChatRead} />}
+          {page === 'Chat' && team && account && <TeamChat teamId={team.id} teamName={team.name} userId={account.owner}
+            email={account.email} displayName={account.displayName} readOnly={readOnly} onRead={markChatRead} />}
           {page === 'My Work' && team && account && <MyWork owner={account.owner} tasks={tasksById} today={today}
             mentions={mentions} reviews={reviewNotices} renderTask={renderTask} openMention={openMention} openReview={openReviewNotice} />}
           {page === 'Activity' && teamId && <TeamActivity teamId={teamId} revision={revision} />}
@@ -459,7 +460,8 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
               <span>Sign-in is unavailable in this demo build. Ask your workspace administrator to enable cloud sign-in.</span>
             </section>}
             <WorkspaceSettings data={data} installation={installation} privateWorkspace={Boolean(account)} />
-            {account && <div className="section"><PasswordSettings setPassword={account.setPassword} /></div>}
+            {account && <div className="section assistant-grid"><DisplayNameSettings current={account.displayName} saveName={account.saveDisplayName} />
+              <PasswordSettings setPassword={account.setPassword} /></div>}
           </>}
           {page === 'Assistant' && <Assistant data={data} today={today} update={setData} allowModel={!account} />}
           {!team && page === 'Operations' && <Business data={data.business} projects={data.projects}

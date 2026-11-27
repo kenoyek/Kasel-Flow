@@ -11,6 +11,8 @@ import type { Workspace } from './data'
 export type CloudControls = {
   owner: string
   email: string
+  displayName: string
+  saveDisplayName: (value:string) => Promise<void>
   initial: CloudWorkspace
   save: (workspace: Workspace, revision: number) => Promise<number>
   team?: Team
@@ -289,6 +291,11 @@ export function CloudGate({ render }: {render: (options?: CloudControls, openAcc
   if (owner && workspace?.owner === owner && workspace.team === team?.id && (team || privateAllowed) && session) return render({
     owner,
     email:session.user.email ?? 'Signed in',
+    displayName:typeof session.user.user_metadata.display_name === 'string' ? session.user.user_metadata.display_name.trim().slice(0,80) : '',
+    async saveDisplayName(value) {
+      const {error} = await cloud!.auth.updateUser({data:{display_name:value}})
+      if (error) throw error
+    },
     initial:workspace.snapshot,
     team:team ?? undefined,
     switchWorkspace:focusInvites => setPicker(focusInvites ? 'invitations' : 'teams'),
