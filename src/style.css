@@ -260,3 +260,5 @@ dialog { max-height: calc(100dvh - 30px); overflow: auto }
 .notification-panel { max-height: min(65vh, 430px); overflow-y: auto }
 .recovery-panel { width: min(100%, 430px) }
 .recovery-panel > section { padding: 22px }
+.team-invitations { margin-top: 14px }
+.team-invitations h3 { font-size: 13px; margin: 10px 0 4px }

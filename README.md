@@ -100,6 +100,10 @@ Apply `202611260010_task_discussions.sql`. Open a saved task in a shared team wo
 
 From **Sign in → Forgot password?**, request a reset link and open it in the same browser. The recovery link opens the password form before loading any workspace. Existing password sign-in works without email delivery. Password recovery uses Supabase Auth email delivery and the existing allowed app redirect URL. Test email delivery before relying on recovery for staff.
 
+### Invitation status
+
+After applying `202611260011_team_invitation_history.sql`, team owners can see pending and expired invitations and the 20 most recent acceptances in **Manage**. Acceptance history starts when the migration is applied and is visible only to the team owner.
+
 ## Run locally
 
 Use Node.js 22.12 or newer.

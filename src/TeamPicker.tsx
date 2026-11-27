@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { cloud } from './cloud-workspace'
 import { listPendingInvites, listTeams, readTeam, type Member, type SentInvite, type Team, type TeamInvite } from './team-workspace'
 
+type AcceptedInvite = { invitation_id: string; email: string; member_role: 'editor' | 'viewer'; accepted_at: string }
+const invitationDate = new Intl.DateTimeFormat('en-NG',{timeZone:'Africa/Lagos',dateStyle:'medium'})
+
 function creationError(error: {code?: string; message?: string}) {
   if (error.code === '42501' && error.message === 'Verified email required') {
     return 'Confirm this account’s email in Supabase Authentication → Users, then try again.'
@@ -29,6 +32,8 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
   const [deletionError, setDeletionError] = useState('')
   const [managed, setManaged] = useState<Team | null>(null)
   const [members, setMembers] = useState<Member[]>([])
+  const [accepted, setAccepted] = useState<AcceptedInvite[]>([])
+  const [historyError, setHistoryError] = useState(false)
   const [sent, setSent] = useState<SentInvite[]>([])
   const [busy, setBusy] = useState(true)
   const [message, setMessage] = useState('')
@@ -47,12 +52,20 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
   }
 
   async function loadRoster(team: Team) {
-    const [roster, invitations] = await Promise.all([
+    const [roster, invitations, history] = await Promise.all([
       cloud!.from('team_members').select('user_id,label,member_role').eq('team_id',team.id).order('label'),
-      cloud!.from('team_invites').select('id,email,member_role,expires_at').eq('team_id',team.id).order('email'),
+      cloud!.from('team_invites').select('id,email,member_role,expires_at').eq('team_id',team.id).order('expires_at',{ascending:false}),
+      cloud!.from('team_invitation_history').select('invitation_id,email,member_role,accepted_at').eq('team_id',team.id)
+        .order('accepted_at',{ascending:false}).order('invitation_id',{ascending:false}).limit(20),
     ])
     if (roster.error || invitations.error) throw Error('Could not load team members or invitations.')
-    if (alive.current) {setMembers(roster.data); setSent(invitations.data); setManaged(team)}
+    if (alive.current) {
+      setMembers(roster.data)
+      setSent(invitations.data)
+      setAccepted(history.error ? [] : history.data ?? [])
+      setHistoryError(Boolean(history.error))
+      setManaged(team)
+    }
   }
 
   async function run(action: () => Promise<void>, error: string) {
@@ -116,6 +129,8 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
       setManaged(null)
       setMembers([])
       setSent([])
+      setAccepted([])
+      setHistoryError(false)
       setDeletion(null)
       setMessage('Deleted team ' + deletion.team.name + '.')
     } catch {
@@ -208,13 +223,30 @@ export function TeamPicker({owner, openPrivate, openTeam, focusInvites, accessPe
             }}>Remove</button>
           </>}
         </div>)}
-        {sent.map(item => <div className="team-row" key={item.id}><span>{item.email} · {item.member_role} invitation · expires {item.expires_at.slice(0,10)}</span>
-          {Date.parse(item.expires_at) > Date.now() && <button className="text-button" disabled={busy} onClick={() => void copyInvitation(item)}>Copy invite link</button>}
-          <button className="text-button" disabled={busy} onClick={() => void run(async () => {
-            const {error} = await cloud!.rpc('cancel_team_invite',{invitation:item.id})
-            if (error) throw error
-            await loadRoster(managed)
-          },'Could not cancel the invitation.')}>Cancel invitation</button></div>)}
+        <div className="team-invitations" aria-label="Invitation status">
+          <h3>Invitations sent</h3>
+          {!sent.length && <p className="dev-muted">No pending or expired invitations.</p>}
+          {sent.map(item => {
+            const expired = Date.parse(item.expires_at) <= Date.now()
+            return <div className="team-row" key={item.id}>
+              <span className="status">{expired ? 'Expired' : 'Pending'}</span>
+              <span>{item.email} · {item.member_role} · {expired ? 'expired' : 'expires'} {invitationDate.format(new Date(item.expires_at))}</span>
+              {!expired && <button className="text-button" disabled={busy} onClick={() => void copyInvitation(item)}>Copy invite link</button>}
+              <button className="text-button" disabled={busy} onClick={() => void run(async () => {
+                const {error} = await cloud!.rpc('cancel_team_invite',{invitation:item.id})
+                if (error) throw error
+                await loadRoster(managed)
+              },'Could not cancel the invitation.')}>{expired ? 'Remove expired invitation' : 'Cancel invitation'}</button>
+            </div>
+          })}
+          <h3>Recent acceptances</h3>
+          {historyError && <p className="dev-muted">Invitation history is unavailable. Refresh the team management panel to retry.</p>}
+          {!historyError && !accepted.length && <p className="dev-muted">No acceptances recorded yet.</p>}
+          {accepted.map(item => <div className="team-row" key={item.invitation_id}>
+            <span className="status done">Accepted</span>
+            <span>{item.email} · {item.member_role} · {invitationDate.format(new Date(item.accepted_at))}</span>
+          </div>)}
+        </div>
         <form onSubmit={event => invite(event, managed)}>
           <label>Invite email<input name="email" type="email" required maxLength={254} /></label>
           <label>Role<select name="role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label>
