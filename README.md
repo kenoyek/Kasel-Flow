@@ -136,7 +136,7 @@ Create a separate **Postmark Server API Token** for the transactional server and
 
 ## Team chat and comment alerts
 
-Apply `202611260016_team_chat_and_comment_notifications.sql`. **Chat** is a shared room within each team or restricted project workspace. Owners and editors can post messages, and viewers can read them. Chat messages save immediately.
+Apply `202611260016_team_chat_and_comment_notifications.sql`. After opening a team or restricted project workspace, choose **Open team chat** in the workspace header or **Chat** in the sidebar. Owners and editors can post messages, and viewers can read them. Chat messages save immediately.
 
 New task comments notify the current assignee and teammates who previously posted in that discussion. Explicit mentions notify the selected teammates and continue to queue mention emails. The author does not receive their own alert. Teammates can open the comment from the notification bell or **My Work**. Chat uses Realtime and provides a refresh button if the connection is unavailable.
 

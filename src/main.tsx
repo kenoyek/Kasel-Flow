@@ -402,6 +402,7 @@ function App({account, openAccount}: {account?: CloudControls; openAccount?: () 
         {account && <section className="panel cloud-bar" aria-label="Cloud workspace controls">
           <span role="status">{cloudMessage || (dirty ? 'Unsaved cloud edits' : team ? team.name + ' · ' + team.role : 'Private cloud workspace')}{dirty && cloudMessage === 'Cloud workspace saved.' ? ' · New edits pending' : ''}</span>
           {!readOnly && <button className="secondary" disabled={!dirty || cloudBusy || Boolean(newer)} onClick={() => void saveCloud()}>Save to cloud</button>}
+          {team && page !== 'Chat' && <button className="secondary" disabled={cloudBusy} onClick={() => navigate('Chat')}><MessagesSquare size={16} /> Open team chat</button>}
           <button className="text-button" disabled={cloudBusy} onClick={() => switchWorkspace()}>Switch workspace</button>
           <button className="text-button" disabled={cloudBusy} onClick={() => void signOut()}>Sign out</button>
         </section>}
